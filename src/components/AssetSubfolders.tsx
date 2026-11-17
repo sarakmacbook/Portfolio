@@ -128,10 +128,9 @@ export default function AssetSubfolders({
               <ExchangeIcon
                 provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
                 glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-                logo={folder.icon === "image" ? folder.logo : undefined}
                 label={folder.name.slice(0, 1)}
                 color={folder.color}
-                className="h-5 w-5 rounded-md"
+                className="h-4 w-4 rounded"
               />
               <span className="max-w-28 truncate">{folder.name}</span>
               <span className={isActive ? "opacity-70" : "text-slate-400"}>{count}</span>
@@ -203,10 +202,9 @@ export default function AssetSubfolders({
                 <ExchangeIcon
                   provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
                   glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-                  logo={folder.icon === "image" ? folder.logo : undefined}
                   label={folder.name.slice(0, 1)}
                   color={folder.color}
-                  className="h-7 w-7 rounded-lg"
+                  className="h-5 w-5 rounded-md"
                 />
                 <h3 className="truncate font-medium text-slate-900">{folder.name}</h3>
                 <span className="text-xs text-slate-400">

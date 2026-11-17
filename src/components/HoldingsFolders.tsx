@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, type DragEvent } from "react";
+import { useState, useTransition, type DragEvent } from "react";
 import { clearAllHoldingGroups, createHoldingGroup } from "@/app/actions";
 import {
   FOLDER_COLORS,
@@ -15,12 +15,6 @@ import {
   type FolderIconKind,
   type HoldingFolder,
 } from "@/lib/holdings-folders";
-import {
-  FOLDER_LOGO_ACCEPT,
-  folderLogoFromFile,
-  imageFileFromDrop,
-  looksLikeImage,
-} from "@/lib/folder-logo";
 import { PRICE_PROVIDERS, PROVIDER_LABELS, type PriceProvider } from "@/lib/market-prices";
 import { money } from "@/lib/format";
 import ExchangeIcon from "./ExchangeIcon";
@@ -103,12 +97,6 @@ export default function HoldingsFolders({
   const [draftColor, setDraftColor] = useState<string>(FOLDER_COLORS[0]);
   const [draftIcon, setDraftIcon] = useState<FolderIconKind>("auto");
   const [draftGlyph, setDraftGlyph] = useState("");
-  const [draftLogo, setDraftLogo] = useState("");
-  const [logoError, setLogoError] = useState("");
-  const [processingLogo, setProcessingLogo] = useState(false);
-  const [logoDragOver, setLogoDragOver] = useState(false);
-  const logoRequest = useRef(0);
-  const logoPicker = useRef<HTMLInputElement>(null);
   const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -147,16 +135,11 @@ export default function HoldingsFolders({
   }
 
   function startEdit(folder: HoldingFolder) {
-    logoRequest.current += 1;
     setEditing(folder.id);
     setDraftName(folder.name);
     setDraftColor(folder.color);
     setDraftIcon(folder.icon);
     setDraftGlyph(folder.glyph);
-    setDraftLogo(folder.logo ?? "");
-    setLogoError("");
-    setProcessingLogo(false);
-    setLogoDragOver(false);
   }
 
   function clearGroups() {
@@ -174,63 +157,16 @@ export default function HoldingsFolders({
     });
   }
 
-  /** Switches icon kind, cancelling any upload still in flight. */
-  function chooseIcon(icon: FolderIconKind, glyph = "") {
-    logoRequest.current += 1;
-    setProcessingLogo(false);
-    setLogoError("");
-    setDraftIcon(icon);
-    setDraftGlyph(glyph);
-  }
-
-  async function uploadLogo(file: File | undefined) {
-    if (!file) return;
-    const request = ++logoRequest.current;
-    setProcessingLogo(true);
-    setLogoError("");
-    try {
-      const logo = await folderLogoFromFile(file);
-      if (request !== logoRequest.current) return;
-      setDraftLogo(logo);
-      setDraftIcon("image");
-      setDraftGlyph("");
-      setAnnouncement("Logo ready. Save the folder to keep it.");
-    } catch (error) {
-      if (request === logoRequest.current) {
-        setLogoError(error instanceof Error ? error.message : "Could not read that logo.");
-      }
-    } finally {
-      if (request === logoRequest.current) setProcessingLogo(false);
-    }
-  }
-
-  /** Accepts a file dragged out of Finder or the Files app. */
-  async function dropLogo(event: DragEvent<HTMLElement>) {
-    // Only a file drag is ours; the folder chips have their own drag gestures.
-    event.preventDefault();
-    event.stopPropagation();
-    setLogoDragOver(false);
-    if (processingLogo) return;
-    const file = imageFileFromDrop(event.dataTransfer);
-    if (!file) {
-      setLogoError("Drag an image file here — for example from Finder.");
-      return;
-    }
-    await uploadLogo(file);
-  }
-
   function commitEdit(id: string) {
-    if (processingLogo) return;
     onFoldersChange(
       updateFolder(folders, id, {
         name: draftName,
         color: draftColor,
         icon: draftIcon,
         glyph: draftGlyph,
-        logo: draftLogo || undefined,
       }),
     );
-    setAnnouncement(`${draftName.trim() || "Folder"} updated. Save layout to keep the changes.`);
+    setAnnouncement(`${draftName.trim() || "Folder"} updated.`);
     setEditing(null);
   }
 
@@ -396,10 +332,9 @@ export default function HoldingsFolders({
             <ExchangeIcon
               provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
               glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-              logo={folder.icon === "image" ? folder.logo : undefined}
               label={folder.name.slice(0, 1)}
               color={folder.color}
-              className="h-5 w-5 rounded-md"
+              className="h-4 w-4 rounded"
             />
           ) : (
             <span aria-hidden="true" className="text-[10px]">
@@ -498,10 +433,9 @@ export default function HoldingsFolders({
                   <ExchangeIcon
                     provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
                     glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-                    logo={folder.icon === "image" ? folder.logo : undefined}
                     label={folder.name.slice(0, 1)}
                     color={folder.color}
-                    className={`h-5 w-5 rounded-md ${
+                    className={`h-4 w-4 rounded ${
                       dropFolder === folder.id ? "ring-2 ring-indigo-400" : ""
                     }`}
                   />
@@ -644,9 +578,8 @@ export default function HoldingsFolders({
                 type="button"
                 className="btn-primary text-xs"
                 onClick={() => commitEdit(editing)}
-                disabled={processingLogo}
               >
-                {processingLogo ? "Resizing…" : "Save folder"}
+                Save folder
               </button>
               <button
                 type="button"
@@ -681,7 +614,10 @@ export default function HoldingsFolders({
             <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Icon</span>
             <button
               type="button"
-              onClick={() => chooseIcon("auto")}
+              onClick={() => {
+                setDraftIcon("auto");
+                setDraftGlyph("");
+              }}
               className={`rounded-lg border px-2 py-1 text-[11px] ${
                 draftIcon === "auto" ? "border-indigo-500 text-slate-900" : "border-slate-200 text-slate-500"
               }`}
@@ -689,52 +625,14 @@ export default function HoldingsFolders({
             >
               Letter
             </button>
-            <button
-              type="button"
-              onClick={() => logoPicker.current?.click()}
-              disabled={processingLogo}
-              className={`rounded-lg border px-2 py-1 text-[11px] ${
-                draftIcon === "image"
-                  ? "border-indigo-500 text-slate-900"
-                  : "border-slate-200 text-slate-500"
-              } ${processingLogo ? "cursor-wait opacity-60" : "hover:bg-slate-50"}`}
-            >
-              {processingLogo
-                ? "Reading image…"
-                : draftIcon === "image" && draftLogo
-                  ? "Replace image"
-                  : "Add image…"}
-            </button>
-            <input
-              ref={logoPicker}
-              type="file"
-              className="sr-only"
-              accept={FOLDER_LOGO_ACCEPT}
-              disabled={processingLogo}
-              aria-label="Choose an image file as the group icon"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                void uploadLogo(file);
-              }}
-            />
-            {draftIcon === "image" && draftLogo && (
-              <button
-                type="button"
-                className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-rose-600 hover:bg-rose-50"
-                onClick={() => {
-                  chooseIcon("auto");
-                  setDraftLogo("");
-                }}
-              >
-                Remove image
-              </button>
-            )}
             {PRICE_PROVIDERS.map((provider) => (
               <button
                 key={provider}
                 type="button"
-                onClick={() => chooseIcon("exchange", provider)}
+                onClick={() => {
+                  setDraftIcon("exchange");
+                  setDraftGlyph(provider);
+                }}
                 className={`flex items-center gap-1 rounded-lg border px-1.5 py-1 text-[11px] ${
                   draftIcon === "exchange" && draftGlyph === provider
                     ? "border-indigo-500 text-slate-900"
@@ -748,13 +646,14 @@ export default function HoldingsFolders({
               </button>
             ))}
             <label className="flex items-center gap-1 text-[11px] text-slate-500">
-              <span>Emoji</span>
+              <span>Custom</span>
               <input
                 className="input w-16 py-1 text-center text-sm"
                 value={draftIcon === "emoji" ? draftGlyph : ""}
-                onChange={(event) =>
-                  chooseIcon(event.target.value ? "emoji" : "auto", event.target.value.slice(0, 4))
-                }
+                onChange={(event) => {
+                  setDraftIcon(event.target.value ? "emoji" : "auto");
+                  setDraftGlyph(event.target.value.slice(0, 4));
+                }}
                 placeholder="🏦"
                 maxLength={4}
                 aria-label="Custom folder icon (emoji or short text)"
@@ -765,62 +664,12 @@ export default function HoldingsFolders({
               <ExchangeIcon
                 provider={draftIcon === "exchange" ? (draftGlyph as PriceProvider) : undefined}
                 glyph={draftIcon === "emoji" ? draftGlyph : undefined}
-                logo={draftIcon === "image" ? draftLogo : undefined}
                 label={draftName.trim().slice(0, 1) || "F"}
                 color={draftColor}
-                className="h-7 w-7 rounded-lg"
+                className="h-6 w-6 rounded-md"
               />
             </span>
           </div>
-          <div
-            role="group"
-            aria-label="Group icon image"
-            onDragEnter={(event) => {
-              event.preventDefault();
-              if (!processingLogo) setLogoDragOver(true);
-            }}
-            onDragOver={(event) => {
-              // Without this the browser refuses the drop (and may open the file).
-              event.preventDefault();
-              event.dataTransfer.dropEffect = processingLogo ? "none" : "copy";
-            }}
-            onDragLeave={(event) => {
-              // Ignore the flicker of moving between children.
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                setLogoDragOver(false);
-              }
-            }}
-            onDrop={dropLogo}
-            onClick={() => {
-              if (!processingLogo) logoPicker.current?.click();
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                if (!processingLogo) logoPicker.current?.click();
-              }
-            }}
-            tabIndex={0}
-            className={`mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[11px] transition ${
-              logoDragOver
-                ? "border-indigo-500 bg-indigo-50 text-indigo-900"
-                : "border-slate-300 text-slate-500 hover:border-indigo-300 hover:bg-slate-50"
-            } ${processingLogo ? "cursor-wait opacity-60" : ""}`}
-          >
-            <span aria-hidden="true" className="text-base leading-none">🖼️</span>
-            <span>
-              {processingLogo
-                ? "Reading the image…"
-                : logoDragOver
-                  ? "Drop the image to use it as this group's icon"
-                  : "Drag an image here from Finder, or click to choose a file"}
-            </span>
-          </div>
-          {logoError && <p role="alert" className="mt-2 text-xs text-rose-700">{logoError}</p>}
-          <p className="mt-2 text-[11px] text-slate-400">
-            PNG, JPG, WebP, GIF, HEIC, or SVG up to 5 MB. The image is resized to 128px and shown
-            in the group header — click Save folder, then Save layout.
-          </p>
         </div>
       )}
 

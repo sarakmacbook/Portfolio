@@ -4,26 +4,30 @@ import { POST } from "../src/app/api/prices/live/route";
 import { cryptoRefreshTargets } from "../src/lib/portfolio";
 import { isRealtimeCryptoCategory } from "../src/lib/stablecoins";
 
-test("real-time updates include stablecoins", () => {
+test("real-time updates apply to volatile crypto only", () => {
   assert.equal(isRealtimeCryptoCategory("volatile"), true);
-  assert.equal(isRealtimeCryptoCategory("stablecoin"), true);
+  assert.equal(isRealtimeCryptoCategory("stablecoin"), false);
   // An unknown or missing category keeps the old behaviour: fetch it.
   assert.equal(isRealtimeCryptoCategory(undefined), true);
   assert.equal(isRealtimeCryptoCategory(null), true);
 });
 
-test("all refresh runs include stablecoins", () => {
+test("real-time refresh targets drop stablecoins only for real-time runs", () => {
   const crypto = [
     { cryptoCategory: "volatile" as const },
     { cryptoCategory: "stablecoin" as const },
     { cryptoCategory: "volatile" as const },
   ];
-  assert.deepEqual(cryptoRefreshTargets(crypto, true), crypto);
+  // Background timer (real-time): stablecoins keep their stored price.
+  assert.deepEqual(cryptoRefreshTargets(crypto, true), [
+    { cryptoCategory: "volatile" },
+    { cryptoCategory: "volatile" },
+  ]);
   // Daily and manual runs still capture every crypto asset once a day.
   assert.deepEqual(cryptoRefreshTargets(crypto, false), crypto);
 });
 
-test("live route fetches stablecoin and volatile prices", async () => {
+test("live route returns stablecoins untouched without fetching them", async () => {
   const originalFetch = globalThis.fetch;
   const calls: string[] = [];
   globalThis.fetch = async (input) => {
@@ -37,23 +41,25 @@ test("live route fetches stablecoin and volatile prices", async () => {
       body: JSON.stringify({
         provider: "bybit",
         assets: [
-          { id: 1, symbol: "USDC", type: "crypto", cryptoCategory: "stablecoin" },
+          { id: 1, symbol: "USDT", type: "crypto", cryptoCategory: "stablecoin" },
           { id: 2, symbol: "BTC", type: "crypto", cryptoCategory: "volatile" },
         ],
       }),
     }));
     const data = await response.json();
-    assert.equal(calls.length, 2);
-    assert.ok(calls.some(url => url.includes("USDCUSDT")));
-    assert.equal(data.found, 2);
-    assert.equal(data.results[0].price, 123);
+    // Only the volatile asset was quoted; the stablecoin never hit the network.
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].includes("BTC"));
+    assert.equal(data.found, 1);
+    assert.equal(data.results[0].stablecoin, true);
+    assert.equal(data.results[0].price, undefined);
     assert.equal(data.results[1].price, 123);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("failed stablecoin quotes report an error without inventing a peg", async () => {
+test("live route skips stablecoins in fallback mode too", async () => {
   const originalFetch = globalThis.fetch;
   const calls: string[] = [];
   globalThis.fetch = async (input) => {
@@ -70,35 +76,9 @@ test("failed stablecoin quotes report an error without inventing a peg", async (
       }),
     }));
     const data = await response.json();
-    assert.ok(calls.length > 0);
+    assert.equal(calls.length, 0);
     assert.equal(data.found, 0);
-    assert.match(data.results[0].error, /No exchange returned/);
-    assert.equal(data.results[0].price, undefined);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("manual live fetch falls back to a USD venue for USDT even without fallback flag", async () => {
-  const originalFetch = globalThis.fetch;
-  const calls: string[] = [];
-  globalThis.fetch = async (input) => {
-    const url = String(input);
-    calls.push(url);
-    return url.includes("products/USDT-USD/book")
-      ? new Response(JSON.stringify({ bids: [["0.98", "1"]], asks: [["1.00", "1"]] }))
-      : new Response("unavailable", { status: 503 });
-  };
-  try {
-    const response = await POST(new Request("http://example.test/api/prices/live", {
-      method: "POST",
-      body: JSON.stringify({ provider: "bybit", assets: [{ id: 1, symbol: "USDT", type: "crypto", cryptoCategory: "stablecoin" }] }),
-    }));
-    const data = await response.json();
-    assert.equal(data.found, 1);
-    assert.equal(data.results[0].price, .99);
-    assert.equal(data.results[0].provider, "coinbase");
-    assert.ok(calls.every(url => !url.includes("USDTUSDT") && !url.includes("USDT-USDT")));
+    assert.equal(data.results[0].stablecoin, true);
   } finally {
     globalThis.fetch = originalFetch;
   }

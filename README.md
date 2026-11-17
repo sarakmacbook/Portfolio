@@ -649,8 +649,8 @@ Folders turn a long table into a few groups without changing any numbers:
    collapsible section rows in the holdings list, including while empty; the
    chips remain as quick filters. To customize groups, press ✎ on a folder
    pill in arrange mode: pick a colour and choose an icon — the first letter,
-   an exchange logo (Binance, OKX, Bybit, Coinbase, Kraken, DexScreener), any
-   emoji you type, or **your own image** (see below). Arrange mode also decides *where* each block of rows
+   an exchange logo (Binance, OKX, Bybit, Coinbase, Kraken, DexScreener) or
+   any emoji you type. Arrange mode also decides *where* each block of rows
    sits: the strip shows one pill per section — every folder group plus
    **Ungrouped rows** — and dragging a pill (or nudging it with ◀ / ▶) moves
    its section in the table, so a group can sit above or below the plain
@@ -682,37 +682,6 @@ Folders turn a long table into a few groups without changing any numbers:
    deleted, they just go back to being plain rows. Use **Remove all groups** in
    the Holdings strip to clear every top-level and asset-owned group without
    resetting the rest of the dashboard layout.
-
-### Group images
-
-A group icon can be an image of your own — a bank logo, a coin mark, a photo —
-instead of a letter or an emoji:
-
-1. In **⇅ Arrange layout**, press ✎ on the folder pill, then **Add image…**.
-2. Pick a file however is easiest: click the **Add image…** button or the dashed
-   **Drag an image here from Finder** box to open the system file picker, or
-   drag a picture straight from **Finder** (or the **Files** app on iOS) and
-   drop it on that box. PNG, JPG, WebP, GIF, HEIC/HEIF, AVIF, BMP, TIFF, ICO and
-   SVG are accepted up to 5 MB. The browser resizes the picture to a 128px square
-   (WebP where the browser can encode it, PNG otherwise), so nothing is uploaded
-   at full size.
-3. Press **Save folder**, then **Save layout**. **Replace image** swaps it and
-   **Remove image** goes back to the letter.
-
-A dropped file is judged by its **bytes**, not just its name or MIME type — macOS
-routinely hands a dropped image over with an empty type, and a `.png` that is
-really a zip is refused. Anything the browser cannot decode is reported in place
-of the icon row ("That file is not an image…") instead of being saved.
-
-The image is stored as a small data URL beside the rest of the folder record in
-`app_settings` — no file server, no object storage, and a backup JSON carries
-the logos with it. Only `data:image/png|jpeg|webp` values are accepted and each
-one is capped, so a hand-edited setting cannot inject a `javascript:` URL or an
-oversized payload; 20 groups of logos stay inside the 1 MB server-action limit.
-The group header draws the icon at 28px, and the letter/emoji fallbacks scale
-with the box instead of staying a fixed size. Logos appear in the group header,
-the filter chips, the arrange pills, the row Folder dropdown, and the subfolder
-cards on an asset page.
 
 On any holding's detail page, **Folders inside [holding name]** lets you create
 subfolders owned by that holding. Subfolders appear as chips — icon, name and
@@ -1656,7 +1625,7 @@ vercel --prod
 | `npm run start`     | Run the production build               |
 | `npm run lint`      | ESLint                                 |
 | `npm run typecheck` | `tsc --noEmit`                         |
-| `npm test` | Database recommendations, URL validation, protected setup API tests (mocked PostgreSQL), backup format validation, crypto-search fallback, dashboard layout helpers, group-logo validation/resizing, currency formatting, and alert rules/Telegram bot tests (token + chat validation, chat detection, mocked API calls) |
+| `npm test` | Database recommendations, URL validation, protected setup API tests (mocked PostgreSQL), backup format validation, crypto-search fallback, dashboard layout helpers, and alert rules/Telegram bot tests (token + chat validation, chat detection, mocked API calls) |
 | `npm run db:push`   | Push schema to `DATABASE_URL`          |
 | `npm run db:generate` / `db:migrate` | Generate / apply SQL migrations |
 | `npm run db:studio` | Drizzle Studio                         |
@@ -1673,12 +1642,7 @@ vercel --prod
 - All pages render dynamically (`force-dynamic`) since holdings change on
   every write.
 - Currency formatting lives in `src/lib/format.ts` and is USD-only by design; all
-  monetary fields in PostgreSQL are plain `double precision` amounts. Because
-  those are floats, the helpers refuse to print a signed zero: a value under
-  `$0.0000005` is shown as `$0.00` with no sign and a neutral colour, and a
-  `NaN` / `Infinity` (an empty quote, a bad division) renders as `—` rather than
-  `$NaN`. `money`, `qty`, `pct`, and `pnlColor` all share those rules — pinned
-  down in `tests/format.test.ts`.
+  monetary fields in PostgreSQL are plain `double precision` amounts.
 - Web Push uses the `web-push` library with VAPID keys from the environment or
   `app_settings`. `public/sw.js` is a minimal service worker that renders push
   payloads and focuses the matching page when a notification is clicked. It is
