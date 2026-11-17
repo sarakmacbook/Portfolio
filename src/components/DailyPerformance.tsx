@@ -17,9 +17,7 @@ export type DailyPerformanceProps = {
 /**
  * Live prices are display-only; they never write prices or trigger alerts.
  *
- * Real-time changes apply to volatile crypto only: stablecoins are pegged to
- * the dollar, so they keep their saved price and are never re-quoted — the card
- * counts them at their stored price and says so.
+ * Both stable and volatile crypto are re-quoted; failed quotes retain saved prices.
  */
 export default function DailyPerformance({ holdings, realized, allTimeRealized, day, timeZone }: DailyPerformanceProps) {
   const router = useRouter();
@@ -32,9 +30,9 @@ export default function DailyPerformance({ holdings, realized, allTimeRealized, 
     let controller: AbortController | undefined;
     let failures = 0;
     const successfulProviders = new Map<number, string>();
-    // Real-time quotes for volatile crypto only; stablecoins keep their saved price.
+    // Refresh all held crypto, including stablecoins.
     const assets = holdings.filter(
-      (h) => h.quantity !== 0 && h.symbol.trim() && h.openingUnrealized !== null && h.cryptoCategory !== "stablecoin",
+      (h) => h.quantity !== 0 && h.symbol.trim() && h.openingUnrealized !== null,
     );
     const poll = async () => {
       if (document.hidden || assets.length === 0) {
@@ -96,11 +94,10 @@ export default function DailyPerformance({ holdings, realized, allTimeRealized, 
   const estimatedBaseline = holdings.some((holding) => holding.estimatedBaseline);
   const unquotable = holdings.some((holding) => holding.quantity !== 0 && !holding.symbol.trim() && holding.openingUnrealized !== null);
   const unpriced = holdings.some((holding) => holding.quantity !== 0 && holding.openingUnrealized !== null && !(prices[holding.id] > 0) && !(holding.price > 0));
-  const stablecoinHeld = holdings.some((holding) => holding.cryptoCategory === "stablecoin" && holding.quantity !== 0 && holding.openingUnrealized !== null);
   const quoteStatus = status === "partial" || unquotable ? "Some prices unavailable · Last price used" : status === "live" ? "Live prices" : "Using saved prices";
   return <>
     <p className={`mt-2 truncate text-lg font-semibold tabular-nums sm:text-xl ${pnlColor(total)}`}>{money(total, { sign: true })}</p>
     <p className="mt-0.5 text-xs text-slate-500">Today’s P/L + crypto · All-time realized {money(allTimeRealized, { sign: true })}</p>
-    <p className="mt-0.5 text-xs text-slate-500">{quoteStatus} · {estimatedBaseline ? "Some start at today’s first saved price" : "vs. last snapshot"}{stablecoinHeld ? " · Stablecoins use saved prices" : ""}{missingBaseline ? " · Some crypto skipped: no starting price" : ""}{unpriced ? " · Unpriced crypto skipped" : ""}</p>
+    <p className="mt-0.5 text-xs text-slate-500">{quoteStatus} · {estimatedBaseline ? "Some start at today’s first saved price" : "vs. last snapshot"}{missingBaseline ? " · Some crypto skipped: no starting price" : ""}{unpriced ? " · Unpriced crypto skipped" : ""}</p>
   </>;
 }

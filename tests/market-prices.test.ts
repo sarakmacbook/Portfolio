@@ -147,3 +147,24 @@ test("no exchange pricing the symbol is a clear error, not a silent zero", async
   );
   await assert.rejects(() => fetchPreferredMarketPrice("", "NOPE"), /No exchange returned a price for NOPE/);
 });
+
+
+test("USDT refresh uses a real USD market, never a self pair or assumed peg", async () => {
+  const calls: string[] = [];
+  stubFetch(url => {
+    calls.push(url);
+    if (url.includes("api.exchange.coinbase.com/products/USDT-USD/")) {
+      return json({ bids: [["0.97", "10"]], asks: [["0.99", "10"]] });
+    }
+    return json({}, false, 404);
+  });
+  const result = await fetchPreferredMarketPrice("binance", "usdt", "USDT");
+  assert.equal(result.price, .98);
+  assert.equal(result.provider, "coinbase");
+  assert.ok(calls.every(url => !url.includes("USDTUSDT") && !url.includes("USDT-USDT")));
+});
+
+test("stablecoin depegs are preserved, not clamped to one dollar", async () => {
+  stubFetch(() => json({ bids: [["0.89", "10"]], asks: [["0.91", "10"]] }));
+  assert.equal(await fetchMarketPrice("binance", "USDC", "USDT"), .9);
+});

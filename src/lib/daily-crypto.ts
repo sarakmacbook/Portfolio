@@ -9,7 +9,7 @@ export type DailyCryptoHolding = {
   quantity: number;
   avgCost: number;
   price: number;
-  /** Crypto category; stablecoins keep their saved price instead of live quotes. */
+  /** Crypto category used to group holdings. */
   cryptoCategory: "stablecoin" | "volatile";
   /** Unrealized P/L at the latest snapshot before today; null if unavailable. */
   openingUnrealized: number | null;

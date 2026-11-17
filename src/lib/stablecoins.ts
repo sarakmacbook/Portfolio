@@ -38,11 +38,8 @@ export function isStablecoinSymbol(symbol: string | null | undefined): boolean {
   return STABLECOIN_SYMBOLS.has(symbol.trim().toUpperCase());
 }
 
-/**
- * True when a crypto category takes part in real-time price updates:
- * volatile only. Stablecoins are pegged to the dollar, so real-time updates
- * keep their stored price instead of chasing an order book.
- */
+/** Both stable and volatile crypto need fresh quotes: pegs can move. */
 export function isRealtimeCryptoCategory(category: string | null | undefined): boolean {
-  return category !== "stablecoin";
+  void category;
+  return true;
 }

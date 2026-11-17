@@ -94,8 +94,8 @@ export default function PriceUpdatesSettings({
             </span>
             <span className="block text-xs text-slate-500">
               Fetch live crypto and stock prices from the server on a timer. The data updates even
-              when you are not looking at the numbers. Real-time changes apply to volatile crypto
-              only — stablecoins keep their saved price.
+              when you are not looking at the numbers. Stablecoins are refreshed too,
+              so changes in their market price are reflected.
             </span>
           </span>
         </label>
