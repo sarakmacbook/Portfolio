@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { resetDashboardLayout, saveDashboardLayout, type ActionState } from "@/app/actions";
 import {
   DASHBOARD_BLOCKS,
@@ -22,6 +22,7 @@ import {
   type FolderAssignments,
   type HoldingFolder,
 } from "@/lib/holdings-folders";
+import { syncSectionsWithFolders } from "@/lib/holdings-sections";
 import GripIcon from "./GripIcon";
 import { HoldingsArrangeProvider } from "./holdings-arrange";
 import type { DailyPerformanceProps } from "./DailyPerformance";
@@ -46,21 +47,6 @@ function orderFoldersBySections(folders: HoldingFolder[], sections: string[]): H
   );
 }
 
-/**
- * Keeps the section order in step with a folder list change: dead folder keys
- * fall away, detailed asset keys stay intact, new folders append at the end,
- * and the legacy ungrouped block keeps its place when one exists.
- */
-function syncSectionsWithFolders(sections: string[], folders: HoldingFolder[]): string[] {
-  const ids = folders.map((folder) => folder.id);
-  const kept = sections.filter(
-    (key) => key === UNGROUPED_SECTION_KEY || ids.includes(key) || isAssetSectionKey(key),
-  );
-  const missing = ids.filter((id) => !kept.includes(id));
-  return kept.includes(UNGROUPED_SECTION_KEY) || kept.some(isAssetSectionKey)
-    ? [...kept, ...missing]
-    : [UNGROUPED_SECTION_KEY, ...kept, ...missing];
-}
 
 const SPAN: Record<DashboardBlockKey, string> = {
   stats: "lg:col-span-5",
@@ -143,10 +129,18 @@ export default function DashboardLayout({
     setFolders((prev) => orderFoldersBySections(prev, next));
   }
 
-  function changeFolders(next: HoldingFolder[]) {
+  const changeFolders = useCallback((next: HoldingFolder[]) => {
+    // Quick creation is persisted immediately, even during layout editing.
+    // Keep newly created groups when the user cancels other pending moves.
+    const currentIds = new Set(folders.map((folder) => folder.id));
+    const created = next.filter((folder) => !currentIds.has(folder.id));
+    if (created.length) {
+      savedFolders.current = [...created, ...savedFolders.current];
+      savedSections.current = syncSectionsWithFolders(savedSections.current, savedFolders.current);
+    }
     setFolders(next);
     setSections((prev) => syncSectionsWithFolders(prev, next));
-  }
+  }, [folders]);
 
   const holdingsArrange = useMemo(
     () => ({
@@ -172,7 +166,7 @@ export default function DashboardLayout({
       assignments,
       onAssignmentsChange: setAssignments,
     }),
-    [arranging, categoryOrder, assetOrder, folders, sections, sectionDrag, assignments],
+    [arranging, categoryOrder, assetOrder, folders, sections, sectionDrag, assignments, changeFolders],
   );
 
   function clearDrag() {

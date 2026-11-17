@@ -5,6 +5,7 @@ import { normaliseDashboardOrder, type DashboardBlockKey } from "@/lib/dashboard
 import { normaliseHoldingFilterOrder, type HoldingFilter } from "@/lib/holdings-filter";
 import {
   assignHolding,
+  UNGROUPED_SECTION_KEY,
   normaliseAssignments,
   normaliseFolders,
   type FolderAssignments,
@@ -190,8 +191,20 @@ export async function saveHoldingsFolders(folders: readonly unknown[]): Promise<
     await clearHoldingsFolders();
     return [];
   }
-  await writeSetting(HOLDINGS_FOLDERS_SETTING, JSON.stringify(normalised));
-  return normalised;
+  const existing = await loadHoldingsFolders();
+  const existingIds = new Set(existing.map((folder) => folder.id));
+  const created = normalised.filter((folder) => !existingIds.has(folder.id));
+  const ordered = [...created, ...normalised.filter((folder) => existingIds.has(folder.id))];
+  const rootIds = created.filter((folder) => !folder.parentAssetId).map((folder) => folder.id);
+  if (rootIds.length > 0) {
+    const sections = await loadHoldingsSections();
+    await saveHoldingsSections([
+      ...rootIds,
+      ...(sections.length ? sections : [UNGROUPED_SECTION_KEY, ...existing.filter((folder) => !folder.parentAssetId).map((folder) => folder.id)]),
+    ]);
+  }
+  await writeSetting(HOLDINGS_FOLDERS_SETTING, JSON.stringify(ordered));
+  return ordered;
 }
 
 /** Removes the folders and, with them, every filing (Reset to default). */

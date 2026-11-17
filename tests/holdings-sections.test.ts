@@ -93,3 +93,22 @@ test("the table renders precise asset targets and both save paths retain them", 
     );
   }
 });
+
+test("new groups start above existing groups and assets; existing order stays intact", async () => {
+  const { syncSectionsWithFolders } = await import("../src/lib/holdings-sections");
+  const folder = (id: string, parentAssetId?: number) => ({ id, name: id, color: "#6366f1", icon: "auto" as const, glyph: "", collapsed: false, parentAssetId });
+  const existing = [assetSectionKey(1), "old", assetSectionKey(2)];
+  assert.deepEqual(syncSectionsWithFolders(existing, [folder("new"), folder("old")]), ["new", ...existing]);
+  assert.deepEqual(syncSectionsWithFolders([], [folder("new")]), ["new", UNGROUPED_SECTION_KEY]);
+  assert.deepEqual(syncSectionsWithFolders(existing, [folder("old"), folder("nested", 1)]), existing);
+  assert.deepEqual(syncSectionsWithFolders(["new", ...existing], [folder("old"), folder("new")]), ["new", ...existing]);
+});
+
+test("all creation paths persist new root groups at the top", () => {
+  const db = readFileSync(resolve(__dirname, "../src/lib/dashboard-order-db.ts"), "utf8");
+  assert.ok(db.includes("const created = normalised.filter((folder) => !existingIds.has(folder.id))"));
+  assert.ok(db.includes("created.filter((folder) => !folder.parentAssetId)"));
+  assert.ok(db.includes("await saveHoldingsSections([\n      ...rootIds,"));
+  const strip = readFileSync(resolve(__dirname, "../src/components/HoldingsFolders.tsx"), "utf8");
+  assert.ok(strip.includes("onFoldersChange([result.folder, ...folders])"));
+});

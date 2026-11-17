@@ -11,6 +11,7 @@ import {
   assetIdFromSectionKey,
   assetSectionKey,
   isAssetSectionKey,
+  type HoldingFolder,
 } from "@/lib/holdings-folders";
 
 /**
@@ -95,4 +96,20 @@ export function reorderHoldingsAssetSections(
     });
   let index = 0;
   return order.map((key) => (isAssetSectionKey(key) ? assetKeys[index++] : key));
+}
+
+/**
+ * Keeps the section order in step with a folder list change: dead folder keys
+ * fall away, detailed asset keys stay intact, new folders start at the top,
+ * and the legacy ungrouped block keeps its place when one exists.
+ */
+export function syncSectionsWithFolders(sections: string[], folders: HoldingFolder[]): string[] {
+  const ids = folders.filter((folder) => !folder.parentAssetId).map((folder) => folder.id);
+  const kept = sections.filter(
+    (key) => key === UNGROUPED_SECTION_KEY || ids.includes(key) || isAssetSectionKey(key),
+  );
+  const missing = ids.filter((id) => !kept.includes(id));
+  return kept.includes(UNGROUPED_SECTION_KEY) || kept.some(isAssetSectionKey)
+    ? [...missing, ...kept]
+    : [...missing, UNGROUPED_SECTION_KEY, ...kept];
 }
