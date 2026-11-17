@@ -275,14 +275,14 @@ export default async function Dashboard() {
             </section>
           ),
           history: (
-            <section className="card p-5">
-              <h2 className="mb-3 font-semibold text-slate-900">Value history</h2>
+            <section className="card analytics-card">
+              <div className="analytics-heading"><h2>Value history</h2><p>Value & cost · USD</p></div>
               <HistoryChart points={points} />
             </section>
           ),
           allocation: (
-            <section className="card min-w-0 p-4 sm:p-5">
-              <h2 className="mb-4 font-semibold text-slate-900">Allocation</h2>
+            <section className="card analytics-card min-w-0">
+              <div className="analytics-heading"><h2>Allocation</h2><p>By USD value</p></div>
               <Donut slices={slices} centerLabel="Total" />
             </section>
           ),

@@ -10,17 +10,17 @@ export const THEME_STORAGE_KEY = "ledgerly-theme";
 
 export type Theme = "light" | "dark";
 
-/** Saved choice wins; otherwise follow the operating system. */
-export function resolveTheme(saved: string | null | undefined, prefersDark: boolean): Theme {
+/** Saved choice wins; otherwise use the reference-inspired dark theme. */
+export function resolveTheme(saved: string | null | undefined, _prefersDark: boolean): Theme {
   if (saved === "dark" || saved === "light") return saved;
-  return prefersDark ? "dark" : "light";
+  return "dark";
 }
 
 export function nextTheme(current: Theme): Theme {
   return current === "dark" ? "light" : "dark";
 }
 
-/** Theme currently applied to the document (server renders are always light-first). */
+/** Theme currently applied to the document (the pre-paint script sets the initial theme). */
 export function currentTheme(): Theme {
   if (typeof document === "undefined") return "light";
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
@@ -46,13 +46,13 @@ export function toggleTheme(): Theme {
 /**
  * Inline script for `<head>`, run before the first paint so a saved dark theme
  * never flashes white. Storage can throw in private browsing; the app then
- * simply starts in the light theme.
+ * simply starts in the dark theme.
  */
 export function bootScript(): string {
   return (
     `(function(){` +
     `try{var t=localStorage.getItem('${THEME_STORAGE_KEY}');` +
-    `if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark')}catch(e){}` +
+    `if(t!=='light')document.documentElement.classList.add('dark')}catch(e){document.documentElement.classList.add('dark')}` +
     `})()`
   );
 }

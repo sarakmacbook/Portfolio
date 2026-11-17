@@ -17,69 +17,46 @@ export function Donut({ slices, centerLabel }: { slices: Slice[]; centerLabel: s
   const r = 70;
   const c = 2 * Math.PI * r;
   let offset = 0;
-  const active = hover !== null ? slices[hover] : null;
+  const largestIndex = slices.reduce((best, slice, i) => slice.value > (slices[best]?.value ?? 0) ? i : best, 0);
+  const active = slices[hover ?? largestIndex];
 
   return (
     <div className="allocation-chart w-full min-w-0">
-      <div className="allocation-content flex min-w-0 flex-col items-center gap-4">
-        <div className="relative h-40 w-40 shrink-0 sm:h-44 sm:w-44">
-          <svg viewBox="0 0 180 180" className="h-full w-full -rotate-90" role="img" aria-label="Portfolio allocation chart">
-            <circle className="donut-track" cx="90" cy="90" r={r} fill="none" strokeWidth="22" />
-            {total > 0 &&
-              slices.map((s, i) => {
-                const frac = Math.max(0, s.value) / total;
-                const len = frac * c;
-                const el = (
-                  <circle
-                    key={s.label}
-                    cx="90"
-                    cy="90"
-                    r={r}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth={hover === i ? 28 : 22}
-                    strokeDasharray={`${len} ${c - len}`}
-                    strokeDashoffset={-offset}
-                    className="cursor-pointer transition-all duration-200"
-                    onMouseEnter={() => setHover(i)}
-                    onMouseLeave={() => setHover(null)}
-                  />
-                );
-                offset += len;
-                return el;
-              })}
+      <div className="allocation-content flex min-w-0 flex-col items-center">
+        <div className="allocation-ring relative shrink-0">
+          <svg viewBox="0 0 180 180" className="h-full w-full -rotate-90" role="img" aria-label={`Portfolio allocation: ${slices.map(s => `${s.label} ${money(s.value)}`).join(", ") || "No holdings"}`}>
+            {total === 0 && <circle className="donut-track" cx="90" cy="90" r={r} fill="none" strokeWidth="16" />}
+            {total > 0 && slices.map((slice, i) => {
+              const len = Math.max(0, slice.value) / total * c;
+              const gap = Math.min(24, len * .35);
+              const start = offset;
+              offset += len;
+              if (len === 0) return null;
+              return <circle key={slice.label} cx="90" cy="90" r={r} fill="none"
+                stroke={slice.color} strokeWidth={hover === i ? 19 : 16}
+                strokeLinecap="round" strokeDasharray={`${Math.max(.01, len - gap)} ${c - Math.max(.01, len - gap)}`}
+                strokeDashoffset={-start - gap / 2}
+                className="transition-all duration-200"
+                onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />;
+            })}
           </svg>
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-xs text-slate-500">{active ? active.label : centerLabel}</span>
-            <span className="text-lg font-semibold text-slate-900">
-              {money(active ? active.value : total, { compact: true })}
-            </span>
-            {active && total > 0 && (
-              <span className="text-xs text-slate-500">{((active.value / total) * 100).toFixed(1)}%</span>
-            )}
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
+            <span className="allocation-value text-3xl text-slate-900">{total > 0 && active ? `${(Math.max(0, active.value) / total * 100).toFixed(1)}%` : "0%"}</span>
+            <span className="max-w-[65%] text-sm text-slate-600">{active?.label ?? centerLabel}</span>
           </div>
         </div>
-        <ul className="min-w-0 w-full space-y-1">
-          {slices.map((s, i) => (
-            <li
-              key={s.label}
-              className={`flex items-center justify-between rounded-lg px-2 py-1.5 text-sm transition ${
-                hover === i ? "bg-slate-50" : ""
-              }`}
-              onMouseEnter={() => setHover(i)}
-              onMouseLeave={() => setHover(null)}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-                <span className="truncate text-slate-700">{s.label}</span>
-              </span>
-              <span className="ml-2 flex shrink-0 gap-2 tabular-nums">
-                <span className="text-slate-500">{total > 0 ? ((s.value / total) * 100).toFixed(1) : "0.0"}%</span>
-                <span className="w-20 text-right font-medium text-slate-900">{money(s.value, { compact: true })}</span>
-              </span>
-            </li>
-          ))}
-          {slices.length === 0 && <li className="text-sm text-slate-400">No holdings yet</li>}
+        <ul className="allocation-legend min-w-0 w-full">
+          {slices.map((slice, i) => <li key={slice.label}>
+            <button type="button" className={`flex items-center justify-between gap-2 text-left transition ${hover === i ? "bg-slate-50" : ""}`}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover(i)} onBlur={() => setHover(null)}
+              onClick={() => setHover(hover === i ? null : i)}
+              aria-label={`${slice.label}: ${money(slice.value)}, ${total > 0 ? (Math.max(0, slice.value) / total * 100).toFixed(1) : 0} percent`}>
+              <span className="flex min-w-0 items-center gap-3"><span className="h-3 w-3 shrink-0 rounded-full" style={{ background: slice.color }} /><span className="truncate text-slate-700">{slice.label}</span></span>
+              <span className="allocation-value shrink-0 text-slate-900">{money(slice.value)}</span>
+            </button>
+          </li>)}
+          {slices.length === 0 && <li className="text-center text-sm text-slate-400">No holdings yet</li>}
         </ul>
       </div>
     </div>
@@ -104,6 +81,7 @@ export function HistoryChart({ points }: { points: Point[] }) {
   const gradId = useId().replace(/:/g, "");
   const [hover, setHover] = useState<number | null>(null);
   const [range, setRange] = useState<HistoryRange>("6M");
+  const [view, setView] = useState<"bars" | "line">("bars");
 
   const visiblePoints = useMemo(() => {
     const selected = HISTORY_RANGES.find((item) => item.value === range);
@@ -139,8 +117,9 @@ export function HistoryChart({ points }: { points: Point[] }) {
       min = min * 0.9;
       max = max * 1.1 || 1;
     }
+    if (view === "bars") min = Math.min(0, min);
     const pad = (max - min) * 0.1;
-    min -= pad;
+    if (view !== "bars") min -= pad;
     max += pad;
     const n = visiblePoints.length;
     const xs = visiblePoints.map((_, i) => P.l + (n === 1 ? (W - P.l - P.r) / 2 : (i / (n - 1)) * (W - P.l - P.r)));
@@ -151,7 +130,7 @@ export function HistoryChart({ points }: { points: Point[] }) {
     const path = line(ys);
     const area = n ? `${path} L${xs[n - 1]},${H - P.b} L${xs[0]},${H - P.b} Z` : "";
     return { path, area, costPath: line(cys), xs, ys, min, max };
-  }, [visiblePoints]);
+  }, [visiblePoints, view]);
 
   if (points.length === 0) {
     return (
@@ -162,7 +141,7 @@ export function HistoryChart({ points }: { points: Point[] }) {
   }
 
   const up = visiblePoints[visiblePoints.length - 1].value >= visiblePoints[0].value;
-  const stroke = up ? "#4f46e5" : "#e11d48";
+  const stroke = up ? "#9ed5ff" : "#fb8395";
   const h = hover !== null ? visiblePoints[hover] : visiblePoints[visiblePoints.length - 1];
 
   return (
@@ -184,6 +163,9 @@ export function HistoryChart({ points }: { points: Point[] }) {
             {item.label}
           </button>
         ))}
+      </div>
+      <div className="mb-4 flex justify-end gap-2" aria-label="Chart style">
+        {(["bars", "line"] as const).map(style => <button key={style} type="button" aria-pressed={view === style} onClick={() => setView(style)} className={`rounded-full px-3 py-1 text-xs ${view === style ? "bg-slate-900 text-white" : "text-slate-500"}`}>{style === "bars" ? "Bars" : "Line"}</button>)}
       </div>
       {lifetime && (
         <div className="mb-4 grid grid-cols-2 gap-3">
@@ -216,6 +198,8 @@ export function HistoryChart({ points }: { points: Point[] }) {
         viewBox={`0 0 ${W} ${H}`}
         className="h-[220px] w-full"
         preserveAspectRatio="none"
+        role="img"
+        aria-label="Portfolio value history; dashed line represents cost basis"
         onMouseLeave={() => setHover(null)}
         onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
@@ -236,9 +220,17 @@ export function HistoryChart({ points }: { points: Point[] }) {
         {[0.25, 0.5, 0.75].map((f) => (
           <line className="history-grid-line" key={f} x1={P.l} x2={W - P.r} y1={P.t + f * (H - P.t - P.b)} y2={P.t + f * (H - P.t - P.b)} />
         ))}
-        <path d={area} fill={`url(#hist-fill-${gradId})`} />
+        {view === "line" && <path d={area} fill={`url(#hist-fill-${gradId})`} />}
+        {view === "bars" && visiblePoints.map((point, i) => {
+          const width = Math.min(28, (W - P.l - P.r) / visiblePoints.length * .65);
+          const bottom = H - P.b;
+          const top = ys[i];
+          const left = Math.min(W - P.r - width, Math.max(P.l, xs[i] - width / 2));
+          const radius = Math.min(width / 2, (bottom - top) / 2);
+          return <path key={point.date} d={`M${left},${bottom} V${top + radius} Q${left},${top} ${left + radius},${top} H${left + width - radius} Q${left + width},${top} ${left + width},${top + radius} V${bottom} Z`} fill={i === visiblePoints.length - 1 ? "#49e18b" : "#9ed5ff"} opacity={hover === null || hover === i ? 1 : .5}><title>{fmtDate(point.date)}: {money(point.value)}</title></path>;
+        })}
         <path d={costPath} fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
-        <path d={path} fill="none" stroke={stroke} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+        {view === "line" && <path d={path} fill="none" stroke={stroke} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         {visiblePoints.length === 1 && <circle cx={xs[0]} cy={ys[0]} r="4" fill={stroke} />}
         {hover !== null && (
           <>
@@ -253,6 +245,7 @@ export function HistoryChart({ points }: { points: Point[] }) {
           {fmtDate(visiblePoints[visiblePoints.length - 1].date)}
         </text>
       </svg>
+      {view === "bars" && <p className="mt-2 text-xs text-slate-500">Blue: portfolio value · Mint: latest snapshot · Dashed: cost basis</p>}
       <span className="sr-only">
         Range {money(min)} to {money(max)}
       </span>
@@ -332,7 +325,7 @@ export function PriceHistoryChart({
   const delta = visiblePoints.length > 1 ? activePoint.price - startPrice : 0;
   const deltaPct = visiblePoints.length > 1 && startPrice > 0 ? delta / startPrice : 0;
   const up = activePoint.price >= startPrice;
-  const stroke = up ? "#4f46e5" : "#e11d48";
+  const stroke = up ? "#9ed5ff" : "#fb8395";
 
   function scrubAtClientX(svg: SVGSVGElement, clientX: number) {
     const rect = svg.getBoundingClientRect();
