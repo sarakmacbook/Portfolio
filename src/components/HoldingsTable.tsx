@@ -58,6 +58,7 @@ import { removeSpamHoldings, saveHoldingFolderAssignment, saveHoldingsSectionsOr
 import CryptoLogo from "./CryptoLogo";
 import ExchangeIcon, { EXCHANGE_BRAND_COLORS } from "./ExchangeIcon";
 import GripIcon from "./GripIcon";
+import { Modal } from "./ui";
 import HoldingsFolders from "./HoldingsFolders";
 import { useHoldingsArrange } from "./holdings-arrange";
 
@@ -215,6 +216,12 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
   const [groupDrop, setGroupDrop] = useState<string | null>(null);
   const [filingError, setFilingError] = useState("");
   const [filing, startFiling] = useTransition();
+  const [insertFolderId, setInsertFolderId] = useState<string | null>(null);
+  const [insertAssetId, setInsertAssetId] = useState("");
+  const [insertError, setInsertError] = useState("");
+  const insertFolder = folders.find((folder) => folder.id === insertFolderId);
+  const insertCandidates = rows.filter((row) => assignments[row.id] !== insertFolderId && row.id !== insertFolder?.parentAssetId);
+
   /** Everyday group moves save straight away; arrange-mode moves stay pending. */
   const [sectionError, setSectionError] = useState("");
   const [sectionSaving, startSectionSave] = useTransition();
@@ -844,16 +851,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
     });
   }
 
-  /**
-   * Files a holding into a folder (`null` = no folder) — the one path used by the
-   * drag-and-drop, the group drop zones and the per-row dropdown.
-   *
-   * Inside arrange mode the change is pending: it lives in the dialog's state and
-   * **Save layout** writes it with everything else. In normal view a drop should
-   * simply work, so the local state updates straight away (optimistic) and the
-   * single assignment is stored immediately; if the server refuses, the previous
-   * filing is put back.
-   */
+  /** Drag/drop and folder selectors stage assignments only in Arrange layout. */
   function fileHolding(assetId: number, folderId: string | null) {
     if (!arranging) return;
     const target = folderId && folders.some((folder) => folder.id === folderId) ? folderId : null;
@@ -870,19 +868,47 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
     );
     clearRowDrag();
     setGroupDrop(null);
+  }
 
-    if (arranging) return;
-
+  /** Explicit insertion is separate from drag/reorder and works in normal view. */
+  function insertHolding() {
+    const assetId = Number(insertAssetId);
+    const target = insertFolder;
+    if (filing || !target || !insertCandidates.some((row) => row.id === assetId)) return;
+    setInsertError("");
     startFiling(async () => {
-      const result = await saveHoldingFolderAssignment({ assetId, folderId: target });
-      if (!result.ok) {
-        setAssignments(previous);
-        setFilingError(result.error ?? "Could not move that holding.");
-        setAnnouncement(`${rowLabel(assetId)} is back in its folder — the move did not save.`);
-        return;
+      try {
+        if (arranging) {
+          fileHolding(assetId, target.id);
+        } else {
+          const result = await saveHoldingFolderAssignment({ assetId, folderId: target.id });
+          if (!result.ok) {
+            setInsertError(result.error ?? "Could not add the asset. Please try again.");
+            return;
+          }
+          setAssignments(assignHolding(assignments, assetId, target.id));
+          setAnnouncement(`${rowLabel(assetId)} added to ${target.name}.`);
+          router.refresh();
+        }
+        setCollapsedGroups((current) => {
+          const next = new Set(current);
+          next.delete(target.id);
+          return next;
+        });
+        setInsertFolderId(null);
+        setInsertAssetId("");
+      } catch (error) {
+        setInsertError(error instanceof Error ? error.message : "Could not add the asset. Please try again.");
       }
-      router.refresh();
     });
+  }
+
+  function insertAssetButton(folder: HoldingFolder) {
+    return <button type="button" className="btn-ghost shrink-0 px-2 py-2 text-xs"
+      aria-label={`Add asset to ${folder.name}`} disabled={filing}
+      onClick={() => { setInsertFolderId(folder.id); setInsertAssetId(""); setInsertError(""); }}>
+      + Add asset
+    </button>;
   }
 
   /** The small folder badge/selector shown with each holding. */
@@ -932,7 +958,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
       <button
         type="button"
         onClick={() => toggleGroup(key)}
-        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
         aria-expanded={!isCollapsed}
       >
         <span className="w-3 text-[10px] text-slate-400">{isCollapsed ? "▶" : "▼"}</span>
@@ -941,15 +967,16 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
           glyph={group.folder.icon === "emoji" ? group.folder.glyph : undefined}
           label={group.folder.name.slice(0, 1)}
           color={group.folder.color}
-          className="h-4 w-4 rounded"
+          className="h-9 w-9 rounded-xl [&>span]:text-sm"
         />
-        <span className="truncate text-xs font-semibold uppercase tracking-wide text-slate-600">
-          {group.folder.name}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-slate-900">{group.folder.name}</span>
+          <span className="block truncate text-xs font-normal text-slate-500">
+            {group.rows.length} holding{group.rows.length === 1 ? "" : "s"} · Group
+            <span className="sm:hidden"> · {money(group.totalValue)}</span>
+          </span>
         </span>
-        <span className="shrink-0 text-[11px] font-normal normal-case text-slate-400">
-          {group.rows.length} holding{group.rows.length === 1 ? "" : "s"}
-        </span>
-        <span className="ml-auto shrink-0 text-xs font-medium tabular-nums text-slate-500">
+        <span className="ml-auto shrink-0 hidden text-sm font-semibold tabular-nums text-slate-900 sm:block">
           {money(group.totalValue)}
         </span>
       </button>
@@ -1224,6 +1251,23 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
+      <Modal open={Boolean(insertFolderId)} onClose={() => { if (!filing) setInsertFolderId(null); }} title={`Add asset to ${insertFolder?.name ?? "group"}`}>
+        <p className="mb-4 text-sm text-slate-500">Choose an existing holding to put in this group. Holdings in another group will be moved here.</p>
+        {insertCandidates.length > 0 ? <>
+          <label className="label" htmlFor="group-asset-picker">Asset</label>
+          <select id="group-asset-picker" className="input" value={insertAssetId} onChange={(event) => setInsertAssetId(event.target.value)} disabled={filing} autoFocus>
+            <option value="">Choose an asset…</option>
+            {insertCandidates.map((row) => <option key={row.id} value={row.id}>
+              {row.name}{row.symbol ? ` (${row.symbol})` : ""} — {folders.find(folder => folder.id === assignments[row.id])?.name ?? "Ungrouped"}
+            </option>)}
+          </select>
+          <p className="mt-3 text-xs text-slate-500">{arranging ? "This change will be saved when you choose Save layout." : "This saves immediately without changing the group order."}</p>
+          <button type="button" className="btn-primary mt-4" onClick={insertHolding} disabled={filing || !insertAssetId || !insertFolder}>
+            {filing ? "Adding…" : "Add to group"}
+          </button>
+        </> : <p className="text-sm text-slate-500">No other holdings to add. Create a holding using Add holding first.</p>}
+        {insertError && <p role="alert" className="mt-3 text-sm text-rose-700">{insertError}</p>}
+      </Modal>
       <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between">
         {arranging ? (
           /* Arrange mode: every category becomes a draggable pill with ◀ / ▶
@@ -1500,7 +1544,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                         : "border-transparent bg-slate-50/60"
                     }`}
                   >
-                    <th colSpan={columnCount} className="px-4 py-2 font-normal" scope="colgroup">
+                    <th colSpan={columnCount} className="px-4 py-3 font-normal" scope="colgroup">
                       <span className="flex items-center gap-2">
                         <GripIcon
                           className={`h-3 w-2 shrink-0 cursor-grab text-slate-400 ${
@@ -1510,6 +1554,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                           }`}
                         />
                         {groupHeader(section.group)}
+                        {insertAssetButton(section.group.folder)}
                         {sectionMoveControls(section.key, position)}
                         {rowDragging !== null && groupDrop === section.key && (
                           <span className="rounded-md bg-indigo-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
@@ -1552,7 +1597,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
               <li
                 {...groupDropProps(section.key, position)}
                 {...sectionDragProps(section.key)}
-                className={`group border-l-2 px-4 py-2 transition ${
+                className={`group border-l-2 px-4 py-3 transition ${
                   groupDrop === section.key
                     ? "border-indigo-500 bg-indigo-50/70"
                     : "border-transparent bg-slate-50/60"
@@ -1567,6 +1612,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                     }`}
                   />
                   {groupHeader(section.group)}
+                        {insertAssetButton(section.group.folder)}
                   {sectionMoveControls(section.key, position)}
                 </span>
               </li>
