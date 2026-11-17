@@ -58,9 +58,9 @@ export function pnlColor(n: number) {
 }
 
 export const TYPE_META: Record<AssetType, { label: string; color: string; badge: string; icon: string }> = {
-  cash: { label: "Cash", color: "#10b981", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200", icon: "💵" },
-  stock: { label: "Stocks", color: "#6366f1", badge: "bg-indigo-50 text-indigo-700 ring-indigo-200", icon: "📈" },
-  crypto: { label: "Crypto", color: "#f59e0b", badge: "bg-amber-50 text-amber-700 ring-amber-200", icon: "🪙" },
+  cash: { label: "Cash", color: "#49e18b", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200", icon: "💵" },
+  stock: { label: "Stocks", color: "#9ed5ff", badge: "bg-indigo-50 text-indigo-700 ring-indigo-200", icon: "📈" },
+  crypto: { label: "Crypto", color: "#e7c58c", badge: "bg-amber-50 text-amber-700 ring-amber-200", icon: "🪙" },
   other: { label: "Other", color: "#64748b", badge: "bg-slate-100 text-slate-700 ring-slate-200", icon: "📦" },
 };
 
