@@ -83,14 +83,6 @@ function krakenPair(symbol: string, quote: "USD" | "USDT") {
  */
 export async function fetchMarketPrice(provider: PriceProvider, rawSymbol: string, quote: "USD" | "USDT") {
   const symbol = baseSymbol(rawSymbol);
-  // A USDT/USDT book does not exist. Use an actual fiat market, not a
-  // hard-coded peg; unsupported venues fall through to USD-capable providers.
-  if (symbol === "USDT") {
-    quote = "USD";
-    if (provider === "bybit" || provider === "okx" || provider === "binance") {
-      throw new Error("USDT requires a USD market on another exchange");
-    }
-  }
   const marketQuote = quote === "USD" ? "USDT" : quote;
 
   switch (provider) {
