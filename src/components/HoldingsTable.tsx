@@ -311,6 +311,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
   }
 
   function handleHoldingDrop() {
+    if (!arranging) return;
     if (rowDragging === null || !rowDrop || rowDragging === rowDrop.id) {
       clearRowDrag();
       return;
@@ -331,6 +332,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
    * the same row as a large before/after target for its whole section.
    */
   function holdingDragProps(id: number, section: HoldingSectionTarget) {
+    if (!arranging) return {};
     return {
       onDragOver: (event: DragEvent<HTMLElement>) => {
         if (sectionDrag !== null) {
@@ -371,6 +373,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
    * dropping another group moves it before or after this group.
    */
   function groupDropProps(folderId: string, position: number) {
+    if (!arranging) return {};
     const key = folderId;
     const section = { key, position };
     return {
@@ -423,6 +426,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
 
   /** The arrange strip moves the whole ungrouped block; the table can split it. */
   function changeGroupSectionOrder(blocks: string[]) {
+    if (!arranging) return;
     applySectionOrder(expandHoldingsSections(blocks, sectionKeys));
   }
 
@@ -431,6 +435,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
    * The previous order is restored if the server refuses the move.
    */
   function commitSectionOrder(next: string[], key: string) {
+    if (!arranging) return;
     if (next.length === sectionKeys.length && next.every((item, index) => item === sectionKeys[index])) {
       return;
     }
@@ -484,6 +489,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
 
   /** Makes a group's header row (table row or mobile card) a drag source. */
   function sectionDragProps(key: string) {
+    if (!arranging) return {};
     return {
       draggable: !sectionSaving,
       onDragStart: (event: DragEvent<HTMLElement>) => {
@@ -583,6 +589,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
    * so a screen reader is not given a drag handle it cannot use.
    */
   function viewDragHandle(row: HoldingRow, className = "") {
+    if (!arranging) return null;
     return (
       <span
         draggable
@@ -848,6 +855,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
    * filing is put back.
    */
   function fileHolding(assetId: number, folderId: string | null) {
+    if (!arranging) return;
     const target = folderId && folders.some((folder) => folder.id === folderId) ? folderId : null;
     const previous = assignments;
     if ((previous[assetId] ?? null) === target) return;
@@ -882,7 +890,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
     const folder = folders.find((item) => item.id === assignments[row.id]);
     // The dropdown is the keyboard- and touch-friendly way to move a holding:
     // native drag-and-drop needs a mouse, so on a phone this is the only path.
-    if (arranging || hasFolders) {
+    if (arranging) {
       return (
         <select
           className="input w-full min-w-0 py-1 text-xs"
@@ -948,8 +956,9 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
     );
   }
 
-  /** Visible touch/keyboard controls; each click saves outside arrange mode. */
+  /** Touch/keyboard controls are available only in Arrange layout mode. */
   function sectionMoveControls(key: string, position: number) {
+    if (!arranging) return null;
     const label = sectionLabel(key);
     return (
       <span className="ml-1 flex shrink-0 items-center gap-0.5">
@@ -1497,7 +1506,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                           className={`h-3 w-2 shrink-0 cursor-grab text-slate-400 ${
                             arranging
                               ? "opacity-70"
-                              : "opacity-100 md:opacity-0 md:group-hover:opacity-70"
+                              : "hidden"
                           }`}
                         />
                         {groupHeader(section.group)}
@@ -1554,7 +1563,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                     className={`h-3 w-2 shrink-0 cursor-grab text-slate-400 ${
                       arranging
                         ? "opacity-70"
-                        : "opacity-100 md:opacity-0 md:group-hover:opacity-70"
+                        : "hidden"
                     }`}
                   />
                   {groupHeader(section.group)}

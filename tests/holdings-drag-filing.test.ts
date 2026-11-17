@@ -49,40 +49,24 @@ test("choosing \"No folder\" pulls a holding back out of its folder", () => {
   assert.deepEqual(split.ungrouped.map((row) => row.id), [1]);
 });
 
-test("the table implements in-place drag-and-drop filing, with an immediate save", () => {
+test("filing and section arrangement require Arrange layout mode", () => {
   const table = read("src/components/HoldingsTable.tsx");
-
-  // One filing path used by drag-and-drop, the group drop zones and the dropdown.
-  assert.ok(table.includes("function fileHolding("), "filing goes through one helper");
-  assert.ok(table.includes("function groupDropProps("), "a whole folder group is a drop target");
-  assert.ok(table.includes("function viewDragHandle("), "rows can be dragged outside arrange mode");
-  assert.ok(
-    table.includes("saveHoldingFolderAssignment("),
-    "a drop outside arrange mode is persisted immediately",
-  );
-  assert.ok(table.includes("router.refresh()"), "the dashboard is re-read after a drop");
-  assert.ok(
-    table.includes("setAssignments(previous)"),
-    "a refused move is rolled back to the previous filing",
-  );
-  // Empty folders are visible group rows, so they can be filled by dragging too.
-  assert.ok(table.includes("const orderedSections = useMemo<HoldingSection[]>("), "empty folders appear as group rows in the list");
-  assert.ok(table.includes("? { kind: \"group\", key, group: { folder, rows: [], totalValue: 0 } }"));
-  assert.ok(
-    (table.match(/orderedSections\.map\(/g) ?? []).length === 2,
-    "the table and mobile list render those groups",
-  );
-  assert.ok(table.includes("Drop to file here"), "the drop target says what dropping does");
-  // The dropdown is the keyboard/touch path and is available in normal view too.
-  assert.match(table, /if \(arranging \|\| hasFolders\) \{/);
+  for (const name of ["holdingDragProps", "groupDropProps", "sectionDragProps", "commitSectionOrder", "fileHolding", "sectionMoveControls", "viewDragHandle"]) {
+    assert.match(table, new RegExp(`function ${name}\\([^\\n]+\\{\\n    if \\(!arranging\\) return`), `${name} must be gated`);
+  }
+  const control = table.slice(table.indexOf("function folderControl("), table.indexOf("function sectionMoveControls("));
+  assert.match(control, /if \(arranging\) \{/);
+  assert.ok(!control.includes("arranging || hasFolders"));
+  assert.ok(table.includes("const orderedSections = useMemo<HoldingSection[]>("));
+  assert.equal((table.match(/orderedSections\.map\(/g) ?? []).length, 2);
 });
 
-test("the folder strip hands drops to the table instead of writing on its own", () => {
+test("normal-view folder chips cannot accept filing drops", () => {
   const strip = read("src/components/HoldingsFolders.tsx");
-  assert.ok(strip.includes("onFileHolding"), "the strip files through the table's helper");
-  assert.ok(!strip.includes("onAssignmentsChange(assignHolding("), "no second filing path");
-  // Chips still accept drops in the normal view.
-  assert.ok(strip.includes("onDragOver={(event) => allowHoldingDrop(event, folder.id)}"));
+  for (const name of ["handleHoldingDrop", "allowHoldingDrop"]) {
+    assert.match(strip, new RegExp(`function ${name}\\([^\\n]+\\{\\n    if \\(!arranging\\) return`));
+  }
+  assert.ok(strip.includes("onFileHolding"));
 });
 
 test("the filing action validates the holding and the folder before writing", () => {

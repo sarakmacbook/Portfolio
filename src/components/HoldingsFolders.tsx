@@ -127,7 +127,7 @@ export default function HoldingsFolders({
         setGroupError(result.error ?? "Could not create the group.");
         return;
       }
-      onFoldersChange([...folders, result.folder]);
+      onFoldersChange([result.folder, ...folders]);
       setDraftName("");
       setCreating(false);
       setAnnouncement(`${result.folder.name} group created.`);
@@ -227,6 +227,7 @@ export default function HoldingsFolders({
 
   /** A holding dragged out of the table (text/plain = asset id) was dropped here. */
   function handleHoldingDrop(event: DragEvent<HTMLElement>, sectionKey: string) {
+    if (!arranging) return;
     const raw = event.dataTransfer.getData("text/plain");
     const assetId = Number(raw);
     if (!Number.isInteger(assetId) || assetId <= 0) return;
@@ -237,6 +238,7 @@ export default function HoldingsFolders({
   }
 
   function allowHoldingDrop(event: DragEvent<HTMLElement>, folderId: string) {
+    if (!arranging) return;
     // Only react to holdings: a folder or category drag carries its own key.
     const raw = event.dataTransfer.types.includes("text/plain");
     if (!raw) return;
