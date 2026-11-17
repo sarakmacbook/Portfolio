@@ -24,6 +24,7 @@ import {
 } from "@/lib/holdings-folders";
 import { syncSectionsWithFolders } from "@/lib/holdings-sections";
 import GripIcon from "./GripIcon";
+import { useDashboardArrange } from "./dashboard-arrange";
 import { HoldingsArrangeProvider } from "./holdings-arrange";
 import type { DailyPerformanceProps } from "./DailyPerformance";
 import StatsGrid, { type StatCardData } from "./StatsGrid";
@@ -62,7 +63,9 @@ const SPAN: Record<DashboardBlockKey, string> = {
  * user clicks **Save layout**. The same mode also arranges what lives *inside*
  * two of the cards — the stat row and the Holdings card (its category tabs and
  * its asset rows) — and the holdings table reads the pending orders through
- * `HoldingsArrangeProvider`.
+ * `HoldingsArrangeProvider`. The mode itself is shared through
+ * `dashboard-arrange`, so the page header can show the **+ Add asset** button
+ * only while the dashboard is being arranged.
  */
 export default function DashboardLayout({
   blocks,
@@ -104,7 +107,16 @@ export default function DashboardLayout({
   const [assignments, setAssignments] = useState<FolderAssignments>(initialAssignments);
   const [sections, setSections] = useState<string[]>(initialSections);
   const [sectionDrag, setSectionDrag] = useState<string | null>(null);
-  const [arranging, setArranging] = useState(false);
+  /**
+   * The arrange-mode switch lives in the context above the dashboard, so the
+   * page header can show the **+ Add asset** button only while arranging.
+   * The local state is the fallback for a layout rendered without the
+   * provider (it then behaves exactly as before).
+   */
+  const arrange = useDashboardArrange();
+  const [localArranging, setLocalArranging] = useState(false);
+  const arranging = arrange ? arrange.arranging : localArranging;
+  const setArranging = arrange ? arrange.setArranging : setLocalArranging;
   const [dragging, setDragging] = useState<DashboardBlockKey | null>(null);
   const [drop, setDrop] = useState<{ key: DashboardBlockKey; after: boolean } | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);

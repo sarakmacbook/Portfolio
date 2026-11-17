@@ -118,7 +118,8 @@ whose tags record the original currency.
 ## Add crypto from a wallet
 
 **Add asset → Crypto → Add via wallet address** takes a public address and fills
-the form for you (or imports everything it finds):
+the form for you (or imports everything it finds). The **+ Add asset** button
+lives in **⇅ Arrange layout** mode on the dashboard:
 
 1. Paste the address — `0x…` for any EVM chain, a Solana base58 address, a
    Bitcoin `bc1…` / `1…` address, or a Tron `T…` address — and choose where to
@@ -547,6 +548,13 @@ activity** — can be moved up and down as whole blocks:
 3. Click **Save layout**. Nothing is written until you save; **Cancel** discards
    pending moves and **Reset to default** restores Portfolio stats → Holdings →
    Value history → Allocation → Recent activity.
+
+The dashboard's **+ Add asset** button belongs to that same mode. It sits in
+the header next to **Refresh prices**, but it only exists while **⇅ Arrange
+layout** is on — adding a holding is part of curating the dashboard, so the
+everyday view stays free of it. The first-run empty state (nothing tracked yet)
+keeps its own **💵 Add cash** / **📈 Add stock** / **🪙 Add crypto** buttons,
+because there is no layout to arrange before the very first holding exists.
 
 The four stat cards can be shuffled **inside** their row and **renamed** at the
 same time: each one gets its own small header with a grip and **◀ / ▶** buttons
