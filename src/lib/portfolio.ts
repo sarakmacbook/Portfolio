@@ -429,10 +429,7 @@ export type DailySnapshotRunResult = {
 /**
  * Crypto assets a refresh run fetches.
  *
- * Real-time runs — the background timer, which sets `staleAfterMs` — take
- * volatile crypto only: stablecoins are pegged to the dollar and keep their
- * stored price instead of chasing an order book. Daily and manual runs still
- * capture every crypto asset once, so stablecoin price history keeps recording.
+ * All runs include stablecoins: a peg is not a guarantee of market value.
  */
 export function cryptoRefreshTargets<T extends Pick<Asset, "cryptoCategory">>(
   allCrypto: readonly T[],
@@ -451,7 +448,7 @@ export function cryptoRefreshTargets<T extends Pick<Asset, "cryptoCategory">>(
  *
  * `onlyStale` limits the run to holdings not yet priced today (crypto and
  * stocks alike); `staleAfterMs` uses a rolling age instead — and marks the run
- * as real-time, so stablecoins keep their stored price (see `cryptoRefreshTargets`).
+ * as real-time; both stable and volatile crypto remain eligible.
  */
 export async function runDailyPriceSnapshot(
   options: { onlyStale?: boolean; staleAfterMs?: number } = {},
