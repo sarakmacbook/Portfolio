@@ -298,8 +298,10 @@ test("folders are saved, loaded and reset with the rest of the dashboard layout"
   assert.ok(actions.includes("export async function clearAllHoldingGroups"), "the clear action deletes folders and filing only");
   const dialog = read("src/components/AddAssetDialog.tsx");
   assert.ok(dialog.includes("Create a new folder…"), "folders can be created in the add-holding form");
-  assert.ok(strip.includes("PRICE_PROVIDERS"), "a folder can wear an exchange icon");
-  assert.ok(strip.includes("aria-label=\"Custom folder icon"), "or a custom icon");
+  const editor = read("src/components/FolderEditor.tsx");
+  assert.ok(strip.includes("<FolderEditor"), "the strip opens the editor for the selected folder");
+  assert.ok(editor.includes("PRICE_PROVIDERS"), "a folder can wear an exchange icon");
+  assert.ok(editor.includes('aria-label="Custom folder icon'), "or a custom emoji");
   assert.ok(strip.includes("onDragOver"), "holdings can be dragged onto a folder");
 });
 
