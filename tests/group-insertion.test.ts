@@ -57,6 +57,23 @@ test("group headers report the P/L of their own holdings, and grouped rows show 
   assert.ok(header.includes("Unrealized P/L of the holdings in this group"));
   assert.ok(table.includes("renderDesktopRow(r, { key: section.key, position }, true)"));
   assert.ok(table.includes("renderMobileCard(r, { key: section.key, position }, true)"));
-  assert.ok(table.includes("inGroup ? \"pl-7\""));
   assert.ok(table.includes("border-indigo-100"));
+});
+
+test("group folder icons line up with asset logos, and the collapse arrow sits on the right", () => {
+  const header = table.slice(table.indexOf("function groupHeader("), table.indexOf("function sectionMoveControls("));
+  // A transparent spacer stands in for the desktop row's hover grip so both
+  // icons start at the same x; phones have no grip and therefore no spacer.
+  assert.ok(header.includes('!arranging && <span className="hidden w-2.5 shrink-0 md:block"'));
+  assert.ok(!header.includes('w-3 text-[10px] text-slate-400">{isCollapsed'));
+  assert.ok(header.indexOf("money(group.totalValue)") < header.indexOf('isCollapsed ? "▶" : "▼"'));
+  // Grouped rows keep the rail/background, but no extra indent: the folder and
+  // its assets share one left edge in both the table and the phone list.
+  assert.ok(!table.includes('pl-7'));
+  assert.ok(!table.includes('bg-indigo-50/60 pl-3'));
+  assert.ok(table.includes('px-4 py-3 ${inGroup ? "border-l-2 border-indigo-100 bg-indigo-50/60"'));
+  const desktopGroupRow = table.slice(table.indexOf('<th colSpan={columnCount}'), table.indexOf("{insertAssetButton(section.group.folder)}"));
+  const mobileGroupRow = table.slice(table.indexOf("<li\n                {...groupDropProps"), table.indexOf("</li>", table.indexOf("<li\n                {...groupDropProps")));
+  assert.ok(desktopGroupRow.indexOf("{groupHeader(section.group)}") < desktopGroupRow.indexOf("<GripIcon"));
+  assert.ok(mobileGroupRow.indexOf("{groupHeader(section.group)}") < mobileGroupRow.indexOf("<GripIcon"));
 });
