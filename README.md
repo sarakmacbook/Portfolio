@@ -683,7 +683,10 @@ Folders turn a long table into a few groups without changing any numbers:
    layout** (the everyday table keeps no folder column) — the same dropdown is
    in the asset's **Edit** form, where a new folder can be created inline. A
    holding can be in one folder; holdings with no folder are simply plain rows
-   in the ungrouped section.
+   in the ungrouped section. Each group header also has two shortcuts: **+ Add
+   asset** files a holding you already track, while **＋ New** opens the full
+   add-holding form with that group preselected, so a new cash account, stock
+   or coin lands under the right header without a follow-up drag.
 4. Pick *No folder* in a holding's arrange-mode dropdown, drop it on the
    **Ungrouped rows** pill, or use the asset's **Edit** form, to pull it out of
    its folder again.
@@ -730,8 +733,10 @@ Outside arrange mode the strip is a filter: **All** plus one chip per folder wit
 its count and value. Clicking a chip narrows the table (and the category tab +
 search still apply on top). With folders in play the table lists holdings that are
 in no folder as ordinary rows first, then a header per folder — icon, name, number
-of holdings and the folder's own total — followed by that folder's rows. Each
-header collapses, which is handy on a phone where the groups become stacked cards.
+of holdings, the folder's own total and the unrealized P/L of its holdings —
+followed by that folder's rows. The rows under a header get a light indigo rail
+and a small indent so it is clear which assets belong to the group. Each header
+collapses, which is handy on a phone where the groups become stacked cards.
 There is no *Unfiled* group or chip: a holding without a folder is not a category,
 it is just a holding.
 

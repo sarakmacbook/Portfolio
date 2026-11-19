@@ -98,6 +98,7 @@ export default function AddAssetDialog({
   newFolderParentAssetId,
   label = "+ Add asset",
   className = "btn-primary",
+  title,
 }: {
   cashAccounts: CashAccount[];
   /** Existing holdings folders, offered as the scan's filing target. */
@@ -111,11 +112,13 @@ export default function AddAssetDialog({
   newFolderParentAssetId?: number;
   label?: string;
   className?: string;
+  /** Tooltip for the trigger, e.g. which group the new holding will land in. */
+  title?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={className} onClick={() => setOpen(true)}>
+      <button type="button" className={className} onClick={() => setOpen(true)} title={title}>
         {label}
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title="Add holding" wide>
