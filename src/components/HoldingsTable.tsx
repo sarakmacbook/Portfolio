@@ -1563,6 +1563,10 @@ export default function HoldingsTable({
               ) : (
                 <Fragment key={section.key}>
                   {sectionDrag !== null && sectionDropLine(position, false)}
+                  {!collapsedGroups.has(section.key) &&
+                    section.group.rows.map((r) =>
+                      renderDesktopRow(r, { key: section.key, position }, true),
+                    )}
                   <tr
                     {...groupDropProps(section.key, position)}
                     {...sectionDragProps(section.key)}
@@ -1593,10 +1597,6 @@ export default function HoldingsTable({
                       </span>
                     </th>
                   </tr>
-                  {!collapsedGroups.has(section.key) &&
-                    section.group.rows.map((r) =>
-                      renderDesktopRow(r, { key: section.key, position }, true),
-                    )}
                 </Fragment>
               ),
             )}
@@ -1623,6 +1623,10 @@ export default function HoldingsTable({
           ) : (
             <Fragment key={section.key}>
               {sectionDrag !== null && sectionDropLine(position, true)}
+              {!collapsedGroups.has(section.key) &&
+                section.group.rows.map((r) =>
+                  renderMobileCard(r, { key: section.key, position }, true),
+                )}
               <li
                 {...groupDropProps(section.key, position)}
                 {...sectionDragProps(section.key)}
@@ -1646,10 +1650,6 @@ export default function HoldingsTable({
                   {sectionMoveControls(section.key, position)}
                 </span>
               </li>
-              {!collapsedGroups.has(section.key) &&
-                section.group.rows.map((r) =>
-                  renderMobileCard(r, { key: section.key, position }, true),
-                )}
             </Fragment>
           ),
         )}
