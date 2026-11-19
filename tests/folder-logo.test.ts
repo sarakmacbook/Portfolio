@@ -35,12 +35,71 @@ test("stored logos must be bounded inline JPEGs", () => {
 test("the file picker rejects mislabeled and oversized files before decoding", async () => {
   await assert.rejects(
     readFolderLogo(new File(["not an image"], "bad.jpg", { type: "image/jpeg" })),
-    /Choose a JPG or JPEG/,
+    /Choose a JPG, PNG, WebP or GIF/,
+  );
+  await assert.rejects(
+    readFolderLogo(new File(["<svg></svg>"], "logo.svg", { type: "image/svg+xml" })),
+    /Choose a JPG, PNG, WebP or GIF/,
   );
   await assert.rejects(
     readFolderLogo(new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.jpeg")),
     /no larger than 5 MB/,
   );
+});
+
+test("PNG, WebP and GIF files from the file picker become bounded JPEG logos", async () => {
+  const signatures = {
+    png: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+    webp: [...Buffer.from("RIFF"), 0, 0, 0, 0, ...Buffer.from("WEBP")],
+    gif: [...Buffer.from("GIF89a")],
+  };
+  const mimeTypes = { png: "image/png", webp: "image/webp", gif: "image/gif" };
+
+  // Node has no canvas, so give the browser helpers minimal stand-ins. The
+  // important part is that each signature is recognised and re-encoded as a
+  // JPEG thumbnail on a white base (transparent PNGs would go black otherwise).
+  const globals = globalThis as unknown as Record<string, unknown>;
+  const previous = {
+    Image: globals.Image,
+    document: globals.document,
+    createObjectURL: URL.createObjectURL,
+    revokeObjectURL: URL.revokeObjectURL,
+  };
+  let whiteFill = 0;
+  globals.Image = class {
+    src = "";
+    naturalWidth = 200;
+    naturalHeight = 100;
+    decode() { return Promise.resolve(); }
+  };
+  globals.document = {
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        set fillStyle(_value: string) {},
+        fillRect() { whiteFill += 1; },
+        drawImage() {},
+      }),
+      toDataURL: (type: string) => type === "image/jpeg" ? JPEG : "",
+    }),
+  };
+  URL.createObjectURL = () => "blob:logo";
+  URL.revokeObjectURL = () => {};
+
+  try {
+    for (const [format, signature] of Object.entries(signatures)) {
+      const type = mimeTypes[format as keyof typeof mimeTypes];
+      const file = new File([new Uint8Array(signature)], `logo.${format}`, { type });
+      assert.equal(await readFolderLogo(file), JPEG);
+    }
+    assert.equal(whiteFill, 3, "each picked image is flattened before JPEG encoding");
+  } finally {
+    globals.Image = previous.Image;
+    globals.document = previous.document;
+    URL.createObjectURL = previous.createObjectURL;
+    URL.revokeObjectURL = previous.revokeObjectURL;
+  }
 });
 
 test("logos survive the layout JSON round-trip and unrelated folder edits", () => {

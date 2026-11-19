@@ -28,8 +28,8 @@ the deployment before storing real portfolio data (see the
   on-chain read of public RPCs as the fallback — and Solana, Bitcoin and Tron
   supported natively. Import one token or all of them at once.
 - **Holdings folders**: group positions ("Long term", "Binance", "Play money"),
-  give each folder an exchange logo, emoji or JPEG logo, then drag a holding onto
-  a folder to file it. Folder headers show their own total.
+  give each folder an exchange logo, emoji or an image from your files, then drag
+  a holding onto a folder to file it. Folder headers show their own total.
 - Crypto asset search that falls back automatically between public data
   providers when one is rate-limited or down.
 - Daily per-asset price snapshots and portfolio snapshots, allocation donut and
@@ -658,10 +658,12 @@ Folders turn a long table into a few groups without changing any numbers:
    chips remain as quick filters. To customize groups, press ✎ on a folder
    pill in arrange mode: pick a colour and choose an icon — the first letter,
    an exchange logo (Binance, OKX, Bybit, Coinbase, Kraken, DexScreener), an
-   emoji you type, or a JPG/JPEG logo. Use **Upload JPEG logo** (up to 5 MB) to
-   preview a thumbnail, then click **Save folder** and **Save layout**. **Remove
-   logo** switches back to the folder's initial. Arrange mode also decides
-   *where* each block of rows sits: the strip shows one pill per section — every
+   emoji you type, or a logo image from your files (JPG, PNG, WebP or GIF, up to
+   5 MB). Use **Upload logo** to preview a thumbnail, then click **Save folder**
+   and **Save layout**. Picked images are converted to a small JPEG logo, with
+   transparent ones flattened onto white. **Remove logo** switches back to the
+   folder's initial. Arrange mode also decides *where* each block of rows sits:
+   the strip shows one pill per section — every
    folder group plus **Ungrouped rows**. Drag a pill (or nudge it with ◀ / ▶) to
    move its section above or below the plain rows, and click **Save layout** to
    keep the arrangement. Dropping a holding onto the **Ungrouped rows** pill

@@ -52,7 +52,7 @@ export default function FolderEditor({
       if (attempt === logoAttempt.current) setDraftIcon({ icon: "image", glyph: "", imageDataUrl });
     } catch (error) {
       if (attempt === logoAttempt.current) {
-        setLogoError(error instanceof Error ? error.message : "Could not read this JPEG.");
+        setLogoError(error instanceof Error ? error.message : "Could not read this image.");
       }
     } finally {
       if (attempt === logoAttempt.current) setPreparingLogo(false);
@@ -172,7 +172,7 @@ export default function FolderEditor({
         <label className="relative inline-flex">
           <input
             type="file"
-            accept="image/jpeg,.jpg,.jpeg"
+            accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
             aria-describedby={logoHelpId}
             className="peer sr-only"
             onChange={(event) => {
@@ -183,7 +183,7 @@ export default function FolderEditor({
             }}
           />
           <span className="btn-ghost cursor-pointer px-2 py-1 text-xs peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-400">
-            {hasLogo ? "Replace JPEG logo" : "Upload JPEG logo"}
+            {hasLogo ? "Replace logo" : "Upload logo"}
           </span>
         </label>
         {hasLogo && (
@@ -195,7 +195,9 @@ export default function FolderEditor({
             Remove logo
           </button>
         )}
-        <p id={logoHelpId} className="text-xs text-slate-500">JPG or JPEG, up to 5 MB.</p>
+        <p id={logoHelpId} className="text-xs text-slate-500">
+          JPG, PNG, WebP or GIF from your files, up to 5 MB. Saved as a small JPEG logo.
+        </p>
       </div>
       <p role="status" className="mt-1 text-xs text-slate-500 empty:hidden">
         {preparingLogo ? "Preparing logo…" : hasLogo ? "Save the folder, then save the layout to keep the logo." : ""}
