@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, type DragEvent } from "react";
-import { clearAllHoldingGroups, createHoldingGroup } from "@/app/actions";
+import { createHoldingGroup } from "@/app/actions";
 import {
   MAX_FOLDERS,
   MAX_FOLDER_NAME_LENGTH,
@@ -55,7 +55,6 @@ export default function HoldingsFolders({
   onSectionDragChange,
   ungroupedCount,
   onAssignmentsChange,
-  onGroupsCleared,
   onFileHolding,
   totalRows,
 }: {
@@ -83,7 +82,6 @@ export default function HoldingsFolders({
   /** Holdings in no folder — the count on the ungrouped pill. */
   ungroupedCount: number;
   onAssignmentsChange: (next: FolderAssignments) => void;
-  onGroupsCleared: () => void;
   /** Files one holding (drag-and-drop); `null` pulls it out of its folder. */
   onFileHolding: (assetId: number, folderId: string | null) => void;
   /** Total number of holdings, shown on the **All** chip. */
@@ -96,10 +94,7 @@ export default function HoldingsFolders({
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [groupError, setGroupError] = useState("");
-  const [clearError, setClearError] = useState("");
-  const [confirmClearAll, setConfirmClearAll] = useState(false);
   const [savingGroup, startSavingGroup] = useTransition();
-  const [clearingGroups, startClearingGroups] = useTransition();
 
   /** The editor exists only while arranging; changes are saved with the layout. */
   const editingFolder = arranging ? folders.find((folder) => folder.id === editing) : undefined;
@@ -132,21 +127,6 @@ export default function HoldingsFolders({
   function startEdit(folder: HoldingFolder) {
     setCreating(false);
     setEditing(folder.id);
-  }
-
-  function clearGroups() {
-    if (clearingGroups) return;
-    setClearError("");
-    startClearingGroups(async () => {
-      const result = await clearAllHoldingGroups();
-      if (!result.ok) {
-        setClearError(result.error ?? "Could not remove the groups.");
-        return;
-      }
-      onGroupsCleared();
-      setConfirmClearAll(false);
-      setAnnouncement("All groups removed. Holdings remain in the portfolio and are now ungrouped.");
-    });
   }
 
   function deleteFolder(folder: HoldingFolder) {
@@ -421,20 +401,6 @@ export default function HoldingsFolders({
           </>
         )}
 
-        {!arranging && allFolders.length > 0 && (
-          <button
-            type="button"
-            className="rounded-xl border border-transparent px-2.5 py-1.5 text-xs font-medium text-rose-600 hover:border-rose-200 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => {
-              setClearError("");
-              setConfirmClearAll(true);
-            }}
-            disabled={clearingGroups}
-          >
-            Remove all groups
-          </button>
-        )}
-
         {arranging && (
           <>
             {sections.map((key, position) => sectionPill(key, position))}
@@ -447,36 +413,6 @@ export default function HoldingsFolders({
           </>
         )}
       </div>
-
-      {confirmClearAll && (
-        <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3">
-          <p className="text-sm font-medium text-rose-900">
-            Remove all {allFolders.length} groups, including folders inside asset pages?
-          </p>
-          <p className="mt-1 text-xs text-rose-800">
-            Holdings will not be deleted; they will remain in your portfolio without groups.
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className="btn-primary bg-rose-600 text-xs hover:bg-rose-700"
-              onClick={clearGroups}
-              disabled={clearingGroups}
-            >
-              {clearingGroups ? "Removing…" : "Remove all groups"}
-            </button>
-            <button
-              type="button"
-              className="btn-ghost text-xs"
-              onClick={() => setConfirmClearAll(false)}
-              disabled={clearingGroups}
-            >
-              Cancel
-            </button>
-          </div>
-          {clearError && <p role="alert" className="mt-2 text-sm text-rose-800">{clearError}</p>}
-        </div>
-      )}
 
       {showQuickCreate && (
         <div className="mt-3 rounded-xl border border-indigo-200 bg-white p-3">

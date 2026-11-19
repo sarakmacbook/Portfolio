@@ -293,9 +293,7 @@ test("folders are saved, loaded and reset with the rest of the dashboard layout"
   assert.ok(actions.includes("export async function createHoldingGroup"), "group creation is persisted server-side");
   assert.ok(!strip.includes("New folder"), "arrange mode still only edits existing folders");
   assert.ok(strip.includes("startEdit(folder)"), "existing folders can still be customised while arranging");
-  assert.ok(strip.includes("Remove all groups"), "all groups can be cleared directly from Holdings");
-  assert.ok(strip.includes("clearAllHoldingGroups()"), "clearing runs through a persistent server action");
-  assert.ok(actions.includes("export async function clearAllHoldingGroups"), "the clear action deletes folders and filing only");
+  assert.ok(!strip.includes("Remove all groups"), "Holdings does not offer bulk group removal");
   const dialog = read("src/components/AddAssetDialog.tsx");
   assert.ok(dialog.includes("Create a new folder…"), "folders can be created in the add-holding form");
   const editor = read("src/components/FolderEditor.tsx");

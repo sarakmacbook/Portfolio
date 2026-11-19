@@ -194,10 +194,6 @@ export default function HoldingsTable({
   const setSectionDrag = arrange?.onSectionDragChange ?? setLocalSectionDrag;
   /** Which drop line the dragged section is hovering over. */
   const [sectionDropAt, setSectionDropAt] = useState<number | null>(null);
-  const clearAllGroupsState = arrange?.onClearGroups ?? (() => {
-    setLocalFolders([]);
-    setLocalAssignments({});
-  });
 
   const [query, setQuery] = useState("");
   // A saved arrangement is what the table shows until a column is sorted on.
@@ -1532,11 +1528,6 @@ export default function HoldingsTable({
         onSectionDragChange={setSectionDrag}
         ungroupedCount={ungrouped.length}
         onAssignmentsChange={setAssignments}
-        onGroupsCleared={() => {
-          clearAllGroupsState();
-          setFolderFilter("all");
-          setCollapsedGroups(new Set());
-        }}
         onFileHolding={fileHolding}
       />
 
