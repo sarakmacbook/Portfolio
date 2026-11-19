@@ -167,14 +167,6 @@ export default function DashboardLayout({
       onSectionsOrderChange: changeSections,
       sectionDrag,
       onSectionDragChange: setSectionDrag,
-      onClearGroups: () => {
-        setFolders([]);
-        setAssignments({});
-        setSections([]);
-        savedFolders.current = [];
-        savedAssignments.current = {};
-        savedSections.current = [];
-      },
       assignments,
       onAssignmentsChange: setAssignments,
     }),

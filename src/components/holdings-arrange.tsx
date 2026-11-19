@@ -32,7 +32,6 @@ export type HoldingsArrangeState = {
   sectionDrag: string | null;
   onSectionDragChange: (key: string | null) => void;
   /** Clears folders and filing from persisted and in-memory dashboard state. */
-  onClearGroups: () => void;
   /** Which folder each holding is filed in (`assetId → folderId`). */
   assignments: FolderAssignments;
   onAssignmentsChange: (next: FolderAssignments) => void;
