@@ -991,7 +991,9 @@ export default function HoldingsTable({
         className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
         aria-expanded={!isCollapsed}
       >
-        <span className="w-3 text-[10px] text-slate-400">{isCollapsed ? "▶" : "▼"}</span>
+        {/* The desktop row has a hover grip before its logo; mirror that space
+            so the folder icon starts at exactly the same x as the assets. */}
+        {!arranging && <span className="hidden w-2.5 shrink-0 md:block" aria-hidden="true" />}
         <FolderIcon folder={group.folder} className="h-9 w-9 rounded-xl [&>span]:text-sm" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-slate-900">{group.folder.name}</span>
@@ -1010,6 +1012,9 @@ export default function HoldingsTable({
         </span>
         <span className="ml-auto shrink-0 hidden text-sm font-semibold tabular-nums text-slate-900 sm:block">
           {money(group.totalValue)}
+        </span>
+        <span className="w-3 shrink-0 text-[10px] text-slate-400" aria-hidden="true">
+          {isCollapsed ? "▶" : "▼"}
         </span>
       </button>
     );
@@ -1075,7 +1080,7 @@ export default function HoldingsTable({
                       </span>
                     </td>
                   )}
-                  <td className={`px-4 py-3 ${inGroup ? "pl-7" : ""}`}>
+                  <td className="px-4 py-3">
                     <Link href={`/assets/${r.id}`} className="flex items-center gap-3">
                       {hasFolders && !arranging && viewDragHandle(r, "mr-1 -ml-1")}
                       {r.type === "crypto" ? (
@@ -1172,7 +1177,7 @@ export default function HoldingsTable({
             <li
               key={r.id}
               {...holdingDragProps(r.id, section)}
-              className={`py-3 ${inGroup ? "border-l-2 border-indigo-100 bg-indigo-50/60 pl-3" : "px-4"} ${isDragging ? "opacity-50" : ""} ${
+              className={`px-4 py-3 ${inGroup ? "border-l-2 border-indigo-100 bg-indigo-50/60" : ""} ${isDragging ? "opacity-50" : ""} ${
                 isDropTarget ? "bg-indigo-50/70 ring-2 ring-inset ring-indigo-400" : ""
               }`}
             >
@@ -1578,6 +1583,7 @@ export default function HoldingsTable({
                   >
                     <th colSpan={columnCount} className="px-4 py-3 font-normal" scope="colgroup">
                       <span className="flex items-center gap-2">
+                        {groupHeader(section.group)}
                         <GripIcon
                           className={`h-3 w-2 shrink-0 cursor-grab text-slate-400 ${
                             arranging
@@ -1585,7 +1591,6 @@ export default function HoldingsTable({
                               : "hidden"
                           }`}
                         />
-                        {groupHeader(section.group)}
                         {insertAssetButton(section.group.folder)}
                         {newAssetButton(section.group.folder)}
                         {sectionMoveControls(section.key, position)}
@@ -1637,6 +1642,7 @@ export default function HoldingsTable({
                 }`}
               >
                 <span className="flex items-center gap-2">
+                  {groupHeader(section.group)}
                   <GripIcon
                     className={`h-3 w-2 shrink-0 cursor-grab text-slate-400 ${
                       arranging
@@ -1644,7 +1650,6 @@ export default function HoldingsTable({
                         : "hidden"
                     }`}
                   />
-                  {groupHeader(section.group)}
                   {insertAssetButton(section.group.folder)}
                   {newAssetButton(section.group.folder)}
                   {sectionMoveControls(section.key, position)}
