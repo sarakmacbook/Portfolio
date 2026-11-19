@@ -272,7 +272,11 @@ export default async function Dashboard() {
                 <div className="flex items-center justify-between px-5 pt-5">
                   <h2 className="font-semibold text-slate-900">Holdings</h2>
                 </div>
-                <HoldingsTable rows={rows} />
+                <HoldingsTable
+                  rows={rows}
+                  cashAccounts={cashAccounts}
+                  folderChoices={foldersForDialog}
+                />
               </section>
             ),
             history: (

@@ -59,6 +59,7 @@ import CryptoLogo from "./CryptoLogo";
 import ExchangeIcon, { EXCHANGE_BRAND_COLORS, FolderIcon } from "./ExchangeIcon";
 import GripIcon from "./GripIcon";
 import { Modal } from "./ui";
+import AddAssetDialog, { type AssetFolderChoice, type CashAccount } from "./AddAssetDialog";
 import HoldingsFolders from "./HoldingsFolders";
 import { useHoldingsArrange } from "./holdings-arrange";
 
@@ -144,7 +145,17 @@ const SORT_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "weight:-1", label: "Weight · largest first" },
 ];
 
-export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
+export default function HoldingsTable({
+  rows,
+  cashAccounts = [],
+  folderChoices = [],
+}: {
+  rows: HoldingRow[];
+  /** Offered by the "new asset in this group" dialog. */
+  cashAccounts?: CashAccount[];
+  /** Saved folders that dialog can file a new holding into. */
+  folderChoices?: AssetFolderChoice[];
+}) {
   const filter = useSyncExternalStore<HoldingFilter>(
     subscribeHoldingFilter,
     getSelectedHoldingFilter,
@@ -911,6 +922,29 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
     </button>;
   }
 
+  /**
+   * Filing an existing holding is one path; creating a brand-new one straight
+   * into the group is the other. The dialog preselects this folder, so a new
+   * cash account, stock or coin lands under the header the user is looking at
+   * instead of becoming another loose row to drag afterwards.
+   */
+  function newAssetButton(folder: HoldingFolder) {
+    // A group created in Arrange layout is not saved yet, so it cannot be a
+    // filing target for a server-side create. Hide the shortcut until it is.
+    if (!folderChoices.some((choice) => choice.id === folder.id)) return null;
+    return (
+      <AddAssetDialog
+        cashAccounts={cashAccounts}
+        folders={folderChoices}
+        defaultFolderId={folder.id}
+        allowCreateFolder={false}
+        label="＋ New"
+        className="btn-ghost shrink-0 px-2 py-2 text-xs"
+        title={`Create a new asset in ${folderLabel(folder)}`}
+      />
+    );
+  }
+
   /** The small folder badge/selector shown with each holding. */
   function folderControl(row: HoldingRow) {
     const folder = folders.find((item) => item.id === assignments[row.id]);
@@ -948,6 +982,8 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
   function groupHeader(group: FolderGroup<HoldingRow>) {
     const key = group.folder.id;
     const isCollapsed = collapsedGroups.has(key);
+    /** Unrealized P/L of the holdings under this header, not of the portfolio. */
+    const groupPnl = group.rows.reduce((sum, row) => sum + row.pnl, 0);
     return (
       <button
         type="button"
@@ -962,6 +998,14 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
           <span className="block truncate text-xs font-normal text-slate-500">
             {group.rows.length} holding{group.rows.length === 1 ? "" : "s"} · Group
             <span className="sm:hidden"> · {money(group.totalValue)}</span>
+            {group.rows.length > 0 && (
+              <span
+                className={`ml-2 tabular-nums ${pnlColor(groupPnl)}`}
+                title="Unrealized P/L of the holdings in this group"
+              >
+                {money(groupPnl, { sign: true })}
+              </span>
+            )}
           </span>
         </span>
         <span className="ml-auto shrink-0 hidden text-sm font-semibold tabular-nums text-slate-900 sm:block">
@@ -1011,8 +1055,8 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
     );
   }
 
-  /** One holding row in the desktop table. */
-  function renderDesktopRow(r: HoldingRow, section: HoldingSectionTarget) {
+  /** One holding row in the desktop table; grouped rows sit under a group header. */
+  function renderDesktopRow(r: HoldingRow, section: HoldingSectionTarget, inGroup = false) {
               const isCash = r.type === "cash";
               const isDragging = rowDragging === r.id;
               const isDropTarget = rowDrop?.id === r.id && !isDragging;
@@ -1020,7 +1064,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                 <tr
                   key={r.id}
                   {...holdingDragProps(r.id, section)}
-                  className={`group transition hover:bg-slate-50/80 ${isDragging ? "opacity-50" : ""} ${
+                  className={`group transition hover:bg-slate-50/80 ${inGroup ? "border-l-2 border-indigo-100 bg-indigo-50/60" : ""} ${isDragging ? "opacity-50" : ""} ${
                     isDropTarget ? "bg-indigo-50/70 ring-2 ring-inset ring-indigo-400" : ""
                   }`}
                 >
@@ -1031,7 +1075,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                       </span>
                     </td>
                   )}
-                  <td className="px-4 py-3">
+                  <td className={`px-4 py-3 ${inGroup ? "pl-7" : ""}`}>
                     <Link href={`/assets/${r.id}`} className="flex items-center gap-3">
                       {hasFolders && !arranging && viewDragHandle(r, "mr-1 -ml-1")}
                       {r.type === "crypto" ? (
@@ -1115,7 +1159,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
   }
 
   /** One holding card in the phone list. */
-  function renderMobileCard(r: HoldingRow, section: HoldingSectionTarget) {
+  function renderMobileCard(r: HoldingRow, section: HoldingSectionTarget, inGroup = false) {
           const isCash = r.type === "cash";
           const subtitle = r.type === "crypto"
             ? r.cryptoCategory === "stablecoin"
@@ -1128,7 +1172,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
             <li
               key={r.id}
               {...holdingDragProps(r.id, section)}
-              className={`px-4 py-3 ${isDragging ? "opacity-50" : ""} ${
+              className={`py-3 ${inGroup ? "border-l-2 border-indigo-100 bg-indigo-50/60 pl-3" : "px-4"} ${isDragging ? "opacity-50" : ""} ${
                 isDropTarget ? "bg-indigo-50/70 ring-2 ring-inset ring-indigo-400" : ""
               }`}
             >
@@ -1543,6 +1587,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                         />
                         {groupHeader(section.group)}
                         {insertAssetButton(section.group.folder)}
+                        {newAssetButton(section.group.folder)}
                         {sectionMoveControls(section.key, position)}
                         {rowDragging !== null && groupDrop === section.key && (
                           <span className="rounded-md bg-indigo-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
@@ -1554,7 +1599,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                   </tr>
                   {!collapsedGroups.has(section.key) &&
                     section.group.rows.map((r) =>
-                      renderDesktopRow(r, { key: section.key, position }),
+                      renderDesktopRow(r, { key: section.key, position }, true),
                     )}
                 </Fragment>
               ),
@@ -1600,13 +1645,14 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
                     }`}
                   />
                   {groupHeader(section.group)}
-                        {insertAssetButton(section.group.folder)}
+                  {insertAssetButton(section.group.folder)}
+                  {newAssetButton(section.group.folder)}
                   {sectionMoveControls(section.key, position)}
                 </span>
               </li>
               {!collapsedGroups.has(section.key) &&
                 section.group.rows.map((r) =>
-                  renderMobileCard(r, { key: section.key, position }),
+                  renderMobileCard(r, { key: section.key, position }, true),
                 )}
             </Fragment>
           ),
