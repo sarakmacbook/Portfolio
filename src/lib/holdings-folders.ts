@@ -14,6 +14,7 @@
  *
  * Everything here is pure — see tests/holdings-folders.test.ts.
  */
+import { normaliseFolderLogo } from "@/lib/folder-logo";
 import { PRICE_PROVIDERS, type PriceProvider } from "@/lib/market-prices";
 
 /**
@@ -66,16 +67,21 @@ export const FOLDER_COLORS = [
 
 export type FolderColor = (typeof FOLDER_COLORS)[number];
 
-/** Folder icons: an exchange mark, an emoji, or the first letter of the name. */
-export type FolderIconKind = "auto" | "exchange" | "emoji";
+/** Folder icons: an exchange mark, emoji, uploaded JPEG, or name initial. */
+export type FolderIconKind = "auto" | "exchange" | "emoji" | "image";
 
-export type HoldingFolder = {
-  id: string;
-  name: string;
-  color: string;
+export type FolderIconSettings = {
   icon: FolderIconKind;
   /** Emoji for `icon: "emoji"`, exchange id for `icon: "exchange"`, else "". */
   glyph: string;
+  /** Small JPEG data URL, stored only for `icon: "image"`. */
+  imageDataUrl?: string;
+};
+
+export type HoldingFolder = FolderIconSettings & {
+  id: string;
+  name: string;
+  color: string;
   /** Remembered collapse state on the dashboard. */
   collapsed: boolean;
   /** When set, this folder is nested inside the corresponding holding's page. */
@@ -97,6 +103,18 @@ function isColor(value: string): boolean {
 
 function isPriceProvider(value: string): value is PriceProvider {
   return (PRICE_PROVIDERS as readonly string[]).includes(value);
+}
+
+function normaliseFolderIcon(kind: unknown, rawGlyph: unknown, rawImage: unknown): FolderIconSettings {
+  const icon = readString(kind, 16);
+  if (icon === "image") {
+    const imageDataUrl = normaliseFolderLogo(rawImage);
+    if (imageDataUrl) return { icon, glyph: "", imageDataUrl };
+  }
+  const glyph = typeof rawGlyph === "string" ? rawGlyph.trim() : "";
+  if (icon === "exchange" && isPriceProvider(glyph)) return { icon, glyph };
+  if (icon === "emoji" && glyph) return { icon, glyph: glyph.slice(0, 8) };
+  return { icon: "auto", glyph: "" };
 }
 
 /**
@@ -128,23 +146,14 @@ export function normaliseFolders(value: unknown): HoldingFolder[] {
     if (!name) continue;
 
     const color = readString(item.color, 16);
-    const icon = readString(item.icon, 16);
-    const glyph = readString(item.glyph, 8);
     const parentAssetId = Number(item.parentAssetId);
-    const iconKind: FolderIconKind =
-      icon === "exchange" && isPriceProvider(glyph)
-        ? "exchange"
-        : icon === "emoji" && glyph
-          ? "emoji"
-          : "auto";
 
     seen.add(id);
     folders.push({
       id,
       name,
       color: isColor(color) ? color : FOLDER_COLORS[folders.length % FOLDER_COLORS.length],
-      icon: iconKind,
-      glyph: iconKind === "auto" ? "" : glyph,
+      ...normaliseFolderIcon(item.icon, item.glyph, item.imageDataUrl),
       collapsed: item.collapsed === true,
       ...(Number.isInteger(parentAssetId) && parentAssetId > 0 ? { parentAssetId } : {}),
     });
@@ -202,7 +211,7 @@ export function nextFolderId(name: string, existing: readonly string[]): string 
 
 /** Builds a folder, clamping the name and picking the next free colour. */
 export function makeFolder(
-  input: { name: string; color?: string; icon?: FolderIconKind; glyph?: string; parentAssetId?: number },
+  input: { name: string; color?: string; parentAssetId?: number } & Partial<FolderIconSettings>,
   existing: readonly HoldingFolder[],
 ): HoldingFolder | null {
   if (existing.length >= MAX_FOLDERS) return null;
@@ -211,18 +220,11 @@ export function makeFolder(
   const color = input.color && isColor(input.color)
     ? input.color
     : FOLDER_COLORS[existing.length % FOLDER_COLORS.length];
-  const icon = input.icon === "exchange" || input.icon === "emoji" ? input.icon : "auto";
-  const glyph = icon === "exchange" && !isPriceProvider(input.glyph ?? "")
-    ? ""
-    : icon === "auto"
-      ? ""
-      : (input.glyph ?? "").slice(0, 8);
   return {
     id: nextFolderId(name, existing.map((folder) => folder.id)),
     name,
     color,
-    icon: icon === "exchange" && !glyph ? "auto" : icon,
-    glyph,
+    ...normaliseFolderIcon(input.icon, input.glyph, input.imageDataUrl),
     collapsed: false,
     ...(Number.isInteger(input.parentAssetId) && Number(input.parentAssetId) > 0
       ? { parentAssetId: Number(input.parentAssetId) }
@@ -234,19 +236,21 @@ export function makeFolder(
 export function updateFolder(
   folders: readonly HoldingFolder[],
   id: string,
-  patch: Partial<Pick<HoldingFolder, "name" | "color" | "icon" | "glyph" | "collapsed">>,
+  patch: Partial<Pick<HoldingFolder, "name" | "color" | "collapsed"> & FolderIconSettings>,
 ): HoldingFolder[] {
   return folders.map((folder) => {
     if (folder.id !== id) return { ...folder };
+    const { imageDataUrl, ...rest } = folder;
     const name = patch.name === undefined ? folder.name : patch.name.trim().slice(0, MAX_FOLDER_NAME_LENGTH);
-    const icon = patch.icon ?? folder.icon;
-    const glyph = (patch.glyph ?? folder.glyph).slice(0, 8);
     return {
-      ...folder,
+      ...rest,
       name: name || folder.name,
       color: patch.color && isColor(patch.color) ? patch.color : folder.color,
-      icon: icon === "exchange" && !isPriceProvider(glyph) ? "auto" : icon,
-      glyph: icon === "auto" ? "" : glyph,
+      ...normaliseFolderIcon(
+        patch.icon ?? folder.icon,
+        patch.glyph ?? folder.glyph,
+        patch.imageDataUrl ?? imageDataUrl,
+      ),
       collapsed: patch.collapsed ?? folder.collapsed,
     };
   });

@@ -20,7 +20,7 @@ test("holding pages can own nested folders and add assets of any category into t
   // New style: a chip strip like the Holdings folder bar owns creation and filtering.
   assert.ok(/＋ New folder\s*<\/button>/.test(section), "a solid always-visible create button sits in the section header");
   assert.ok(section.includes("Create folder"), "the inline field creates the subfolder");
-  assert.ok(section.includes("ExchangeIcon"), "chips and cards wear the folder icon");
+  assert.ok(section.includes("<FolderIcon"), "chips and cards wear the folder icon");
   assert.ok(section.includes('useState<string>("all")'), "chips filter the folder cards below");
   assert.ok(/>\s*All\s*</.test(section), "an All chip shows every subfolder at once");
   assert.ok(

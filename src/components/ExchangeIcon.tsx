@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import type { HoldingFolder } from "@/lib/holdings-folders";
 import { PROVIDER_LABELS, type PriceProvider } from "@/lib/market-prices";
 
 /**
@@ -79,12 +81,13 @@ export function ExchangeMark({ provider }: { provider: PriceProvider }) {
 }
 
 /**
- * A folder icon: an exchange mark, a custom emoji, or the folder's initial. All
- * three render in the same square so a row of folders looks even.
+ * Square badge for an exchange or a folder. A failed image falls back to the
+ * folder's initial without changing the size of the badge.
  */
 export default function ExchangeIcon({
   provider,
   glyph,
+  imageDataUrl,
   label,
   color,
   className = "h-7 w-7 rounded-lg",
@@ -94,12 +97,16 @@ export default function ExchangeIcon({
   provider?: PriceProvider | "";
   /** Emoji or short text for a custom icon. */
   glyph?: string;
+  /** Validated JPEG thumbnail for a folder with an uploaded logo. */
+  imageDataUrl?: string;
   /** Fallback initial(s) — usually the first letter of the folder name. */
   label?: string;
   color: string;
   className?: string;
   title?: string;
 }) {
+  const [failedImage, setFailedImage] = useState<string>();
+  const showImage = imageDataUrl && imageDataUrl !== failedImage;
   const text = (glyph || label || "•").slice(0, 2);
   const isEmoji = Boolean(glyph) && !/^[a-z0-9 ]+$/i.test(glyph ?? "");
 
@@ -109,11 +116,39 @@ export default function ExchangeIcon({
       style={{ backgroundColor: color }}
       title={title ?? (provider ? PROVIDER_LABELS[provider] : text)}
     >
-      {provider ? (
+      {showImage ? (
+        // Inline thumbnails are already scaled, and aren't served by Next's image optimizer.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageDataUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-contain"
+          draggable={false}
+          onError={() => setFailedImage(imageDataUrl)}
+        />
+      ) : provider ? (
         <ExchangeMark provider={provider} />
       ) : (
         <span className={isEmoji ? "text-[13px] leading-none" : "uppercase"}>{text}</span>
       )}
     </span>
+  );
+}
+
+/** Keep folder chips, headings and the editor preview in sync. */
+export function FolderIcon({ folder, className }: {
+  folder: Pick<HoldingFolder, "name" | "color" | "icon" | "glyph" | "imageDataUrl">;
+  className?: string;
+}) {
+  return (
+    <ExchangeIcon
+      provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
+      glyph={folder.icon === "emoji" ? folder.glyph : undefined}
+      imageDataUrl={folder.icon === "image" ? folder.imageDataUrl : undefined}
+      title={folder.icon === "image" ? folder.name : undefined}
+      label={folder.name.slice(0, 1)}
+      color={folder.color}
+      className={className}
+    />
   );
 }

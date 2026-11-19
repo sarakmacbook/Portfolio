@@ -6,8 +6,7 @@ import { useState, useTransition } from "react";
 import { createAssetSubfolder } from "@/app/actions";
 import type { HoldingFolder } from "@/lib/holdings-folders";
 import { money, qty, TYPE_META } from "@/lib/format";
-import { type PriceProvider } from "@/lib/market-prices";
-import ExchangeIcon from "./ExchangeIcon";
+import { FolderIcon } from "./ExchangeIcon";
 import AddAssetDialog, { type AssetFolderChoice, type CashAccount } from "./AddAssetDialog";
 
 type ChildHolding = {
@@ -125,13 +124,7 @@ export default function AssetSubfolders({
               aria-pressed={isActive}
               title={`${folder.name} · ${money(total)}`}
             >
-              <ExchangeIcon
-                provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
-                glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-                label={folder.name.slice(0, 1)}
-                color={folder.color}
-                className="h-4 w-4 rounded"
-              />
+              <FolderIcon folder={folder} className="h-4 w-4 rounded" />
               <span className="max-w-28 truncate">{folder.name}</span>
               <span className={isActive ? "opacity-70" : "text-slate-400"}>{count}</span>
             </button>
@@ -199,13 +192,7 @@ export default function AssetSubfolders({
           <div key={folder.id} className="rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
-                <ExchangeIcon
-                  provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
-                  glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-                  label={folder.name.slice(0, 1)}
-                  color={folder.color}
-                  className="h-5 w-5 rounded-md"
-                />
+                <FolderIcon folder={folder} className="h-5 w-5 rounded-md" />
                 <h3 className="truncate font-medium text-slate-900">{folder.name}</h3>
                 <span className="text-xs text-slate-400">
                   {holdings.length} holding{holdings.length === 1 ? "" : "s"} · {money(total)}

@@ -56,7 +56,7 @@ import { spamReasonOf, splitSpam } from "@/lib/wallet-spam";
 import { PROVIDER_LABELS, type PriceProvider } from "@/lib/market-prices";
 import { removeSpamHoldings, saveHoldingFolderAssignment, saveHoldingsSectionsOrder } from "@/app/actions";
 import CryptoLogo from "./CryptoLogo";
-import ExchangeIcon, { EXCHANGE_BRAND_COLORS } from "./ExchangeIcon";
+import ExchangeIcon, { EXCHANGE_BRAND_COLORS, FolderIcon } from "./ExchangeIcon";
 import GripIcon from "./GripIcon";
 import { Modal } from "./ui";
 import HoldingsFolders from "./HoldingsFolders";
@@ -938,13 +938,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
     if (!folder) return <span className="text-xs text-slate-400">—</span>;
     return (
       <span className="inline-flex max-w-full items-center gap-1 rounded-lg bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
-        <ExchangeIcon
-          provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
-          glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-          label={folder.name.slice(0, 1)}
-          color={folder.color}
-          className="h-3.5 w-3.5 rounded"
-        />
+        <FolderIcon folder={folder} className="h-3.5 w-3.5 rounded" />
         <span className="truncate">{folderLabel(folder)}</span>
       </span>
     );
@@ -962,13 +956,7 @@ export default function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
         aria-expanded={!isCollapsed}
       >
         <span className="w-3 text-[10px] text-slate-400">{isCollapsed ? "▶" : "▼"}</span>
-        <ExchangeIcon
-          provider={group.folder.icon === "exchange" ? (group.folder.glyph as PriceProvider) : undefined}
-          glyph={group.folder.icon === "emoji" ? group.folder.glyph : undefined}
-          label={group.folder.name.slice(0, 1)}
-          color={group.folder.color}
-          className="h-9 w-9 rounded-xl [&>span]:text-sm"
-        />
+        <FolderIcon folder={group.folder} className="h-9 w-9 rounded-xl [&>span]:text-sm" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-slate-900">{group.folder.name}</span>
           <span className="block truncate text-xs font-normal text-slate-500">

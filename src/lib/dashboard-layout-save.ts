@@ -29,12 +29,14 @@ import {
   saveHoldingsSections,
 } from "@/lib/dashboard-order-db";
 import { isDashboardBlockKey } from "@/lib/dashboard-layout";
+import { normaliseFolderLogo } from "@/lib/folder-logo";
 import {
   isDashboardStatKey,
   normaliseDashboardStatLabels,
   type DashboardStatKey,
 } from "@/lib/dashboard-stats";
 import {
+  MAX_FOLDER_NAME_LENGTH,
   normaliseAssignments,
   normaliseFolders,
   UNGROUPED_SECTION_KEY,
@@ -123,17 +125,18 @@ export function parseHoldingOrder(raw: string): number[] {
   return ids;
 }
 
-/** The Holdings folders: a JSON array of `{ id, name, color, icon, glyph }`. */
+/** The Holdings folders, including optional custom logo thumbnails. */
 export function parseHoldingsFolders(raw: string): unknown[] {
   const parsed = parseJson(raw || "[]", "holdings folders");
   if (!Array.isArray(parsed)) throw new Error("Could not read the holdings folders.");
   if (parsed.length > 200) throw new Error("Too many holdings folders.");
   for (const value of parsed) {
-    const name =
-      value && typeof value === "object"
-        ? String((value as { name?: unknown }).name ?? "").trim()
-        : "";
+    const folder = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+    const name = String(folder?.name ?? "").trim();
     if (!name) throw new Error("Every holdings folder needs a name.");
+    if (folder?.icon === "image" && !normaliseFolderLogo(folder.imageDataUrl)) {
+      throw new Error(`The logo for ${name.slice(0, MAX_FOLDER_NAME_LENGTH)} is invalid. Choose a JPEG and try again.`);
+    }
   }
   return parsed;
 }

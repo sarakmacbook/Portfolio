@@ -3,7 +3,6 @@
 import { useState, useTransition, type DragEvent } from "react";
 import { clearAllHoldingGroups, createHoldingGroup } from "@/app/actions";
 import {
-  FOLDER_COLORS,
   MAX_FOLDERS,
   MAX_FOLDER_NAME_LENGTH,
   matchesFolderFilter,
@@ -12,12 +11,11 @@ import {
   updateFolder,
   type FolderAssignments,
   type FolderFilter,
-  type FolderIconKind,
   type HoldingFolder,
 } from "@/lib/holdings-folders";
-import { PRICE_PROVIDERS, PROVIDER_LABELS, type PriceProvider } from "@/lib/market-prices";
 import { money } from "@/lib/format";
-import ExchangeIcon from "./ExchangeIcon";
+import { FolderIcon } from "./ExchangeIcon";
+import FolderEditor from "./FolderEditor";
 import GripIcon from "./GripIcon";
 
 /**
@@ -25,8 +23,8 @@ import GripIcon from "./GripIcon";
  *
  * Outside arrange mode it is a filter bar: **All** and one chip per folder with
  * its count and value. Inside arrange mode the chips become draggable (and
- * nudgeable with ◀ / ▶), can be renamed, recoloured, given an exchange or emoji
- * icon, and deleted — and a holding dragged from the table can be dropped
+ * nudgeable with ◀ / ▶), can be renamed, recoloured, given a custom icon, and
+ * deleted — and a holding dragged from the table can be dropped
  * straight onto a folder to file it.
  *
  * Groups are created from the **＋ Add group** button inside arrange mode (a
@@ -94,9 +92,6 @@ export default function HoldingsFolders({
   const [editing, setEditing] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
-  const [draftColor, setDraftColor] = useState<string>(FOLDER_COLORS[0]);
-  const [draftIcon, setDraftIcon] = useState<FolderIconKind>("auto");
-  const [draftGlyph, setDraftGlyph] = useState("");
   const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
   const [dropFolder, setDropFolder] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -107,7 +102,7 @@ export default function HoldingsFolders({
   const [clearingGroups, startClearingGroups] = useTransition();
 
   /** The editor exists only while arranging; changes are saved with the layout. */
-  const showEditor = arranging && editing !== null;
+  const editingFolder = arranging ? folders.find((folder) => folder.id === editing) : undefined;
   /** The quick group form lives in the strip itself, in either mode. */
   const showQuickCreate = creating;
 
@@ -135,11 +130,8 @@ export default function HoldingsFolders({
   }
 
   function startEdit(folder: HoldingFolder) {
+    setCreating(false);
     setEditing(folder.id);
-    setDraftName(folder.name);
-    setDraftColor(folder.color);
-    setDraftIcon(folder.icon);
-    setDraftGlyph(folder.glyph);
   }
 
   function clearGroups() {
@@ -155,19 +147,6 @@ export default function HoldingsFolders({
       setConfirmClearAll(false);
       setAnnouncement("All groups removed. Holdings remain in the portfolio and are now ungrouped.");
     });
-  }
-
-  function commitEdit(id: string) {
-    onFoldersChange(
-      updateFolder(folders, id, {
-        name: draftName,
-        color: draftColor,
-        icon: draftIcon,
-        glyph: draftGlyph,
-      }),
-    );
-    setAnnouncement(`${draftName.trim() || "Folder"} updated.`);
-    setEditing(null);
   }
 
   function deleteFolder(folder: HoldingFolder) {
@@ -331,13 +310,7 @@ export default function HoldingsFolders({
         >
           <GripIcon className="h-3 w-2" />
           {folder ? (
-            <ExchangeIcon
-              provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
-              glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-              label={folder.name.slice(0, 1)}
-              color={folder.color}
-              className="h-4 w-4 rounded"
-            />
+            <FolderIcon folder={folder} className="h-4 w-4 rounded" />
           ) : (
             <span aria-hidden="true" className="text-[10px]">
               ≡
@@ -432,11 +405,8 @@ export default function HoldingsFolders({
                   onDragLeave={() => setDropFolder((current) => (current === folder.id ? null : current))}
                   onDrop={(event) => handleHoldingDrop(event, folder.id)}
                 >
-                  <ExchangeIcon
-                    provider={folder.icon === "exchange" ? (folder.glyph as PriceProvider) : undefined}
-                    glyph={folder.icon === "emoji" ? folder.glyph : undefined}
-                    label={folder.name.slice(0, 1)}
-                    color={folder.color}
+                  <FolderIcon
+                    folder={folder}
                     className={`h-4 w-4 rounded ${
                       dropFolder === folder.id ? "ring-2 ring-indigo-400" : ""
                     }`}
@@ -556,123 +526,17 @@ export default function HoldingsFolders({
         </div>
       )}
 
-      {showEditor && editing !== null && (
-        <div className="mt-3 rounded-xl border border-indigo-200 bg-white p-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-              className="input min-w-0 flex-1"
-              placeholder="Folder name (e.g. Long term, Binance, Play money)"
-              value={draftName}
-              maxLength={MAX_FOLDER_NAME_LENGTH}
-              onChange={(event) => setDraftName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  commitEdit(editing);
-                }
-                if (event.key === "Escape") setEditing(null);
-              }}
-              aria-label="Folder name"
-              autoFocus
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="btn-primary text-xs"
-                onClick={() => commitEdit(editing)}
-              >
-                Save folder
-              </button>
-              <button
-                type="button"
-                className="btn-ghost text-xs"
-                onClick={() => setEditing(null)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Colour</span>
-            <span className="flex flex-wrap gap-1">
-              {FOLDER_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setDraftColor(color)}
-                  className={`h-5 w-5 rounded-full ring-offset-2 ${
-                    draftColor === color ? "ring-2 ring-indigo-500" : ""
-                  }`}
-                  style={{ backgroundColor: color }}
-                  aria-label={`Use colour ${color}`}
-                  aria-pressed={draftColor === color}
-                />
-              ))}
-            </span>
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Icon</span>
-            <button
-              type="button"
-              onClick={() => {
-                setDraftIcon("auto");
-                setDraftGlyph("");
-              }}
-              className={`rounded-lg border px-2 py-1 text-[11px] ${
-                draftIcon === "auto" ? "border-indigo-500 text-slate-900" : "border-slate-200 text-slate-500"
-              }`}
-              aria-pressed={draftIcon === "auto"}
-            >
-              Letter
-            </button>
-            {PRICE_PROVIDERS.map((provider) => (
-              <button
-                key={provider}
-                type="button"
-                onClick={() => {
-                  setDraftIcon("exchange");
-                  setDraftGlyph(provider);
-                }}
-                className={`flex items-center gap-1 rounded-lg border px-1.5 py-1 text-[11px] ${
-                  draftIcon === "exchange" && draftGlyph === provider
-                    ? "border-indigo-500 text-slate-900"
-                    : "border-slate-200 text-slate-500"
-                }`}
-                aria-pressed={draftIcon === "exchange" && draftGlyph === provider}
-                title={`Use the ${PROVIDER_LABELS[provider]} logo`}
-              >
-                <ExchangeIcon provider={provider} color={draftColor} className="h-4 w-4 rounded" />
-                {PROVIDER_LABELS[provider]}
-              </button>
-            ))}
-            <label className="flex items-center gap-1 text-[11px] text-slate-500">
-              <span>Custom</span>
-              <input
-                className="input w-16 py-1 text-center text-sm"
-                value={draftIcon === "emoji" ? draftGlyph : ""}
-                onChange={(event) => {
-                  setDraftIcon(event.target.value ? "emoji" : "auto");
-                  setDraftGlyph(event.target.value.slice(0, 4));
-                }}
-                placeholder="🏦"
-                maxLength={4}
-                aria-label="Custom folder icon (emoji or short text)"
-              />
-            </label>
-            <span className="ml-auto flex items-center gap-2 text-[11px] text-slate-400">
-              Preview
-              <ExchangeIcon
-                provider={draftIcon === "exchange" ? (draftGlyph as PriceProvider) : undefined}
-                glyph={draftIcon === "emoji" ? draftGlyph : undefined}
-                label={draftName.trim().slice(0, 1) || "F"}
-                color={draftColor}
-                className="h-6 w-6 rounded-md"
-              />
-            </span>
-          </div>
-        </div>
+      {editingFolder && (
+        <FolderEditor
+          key={editingFolder.id}
+          folder={editingFolder}
+          onCancel={() => setEditing(null)}
+          onSave={(draft) => {
+            onFoldersChange(updateFolder(folders, editingFolder.id, draft));
+            setAnnouncement(`${draft.name.trim() || editingFolder.name} updated.`);
+            setEditing(null);
+          }}
+        />
       )}
 
     </div>
