@@ -667,7 +667,7 @@ export async function importWalletBalances(input: {
    * picker would have hidden. An unverifiable token is kept, never skipped.
    */
   skipUnverified?: boolean;
-  /** The indexer's verification verdict, when it sent one. */
+  /** The explorer's verification verdict, when it sent one. */
   verified?: boolean;
   /**
    * Import only tokens CoinMarketCap lists for their contract. Honoured only
@@ -685,7 +685,7 @@ export async function importWalletBalances(input: {
     price: number;
     category: CryptoCategory;
     contract: string | null;
-    /** Spam flag from the indexer, when one was passed along. */
+    /** Spam flag from the explorer, when one was passed along. */
     spam?: boolean;
     /** Organic 24h volume measured by the scan, when it had an answer. */
     organicVolumeUsd?: number;
@@ -693,7 +693,7 @@ export async function importWalletBalances(input: {
     liquidityUsd?: number;
     /** Liquidity of the token's deepest single pool, when measured. */
     deepestPoolUsd?: number;
-    /** The index's own verification verdict, when it sent one. */
+    /** The explorer's own verification verdict, when it sent one. */
     verified?: boolean;
     /** CoinMarketCap's id for the contract, when the trust pass matched it. */
     cmcId?: number;
@@ -801,7 +801,7 @@ export async function importWalletBalances(input: {
       /**
        * Verification: the picker hides tokens it positively judged not real, so
        * "Import selected" must not book them either. Recomputed from the same
-       * rules — official contract, indexer verdict, or a deep market. An
+       * rules — official contract, explorer verdict, or a deep market. An
        * `unknown` verdict (no answer) is never a reason to skip.
        */
       if (input.skipUnverified !== false) {

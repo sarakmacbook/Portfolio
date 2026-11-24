@@ -10,8 +10,6 @@ import {
   verificationOf,
   verifiedByOf,
 } from "../src/lib/wallet-trust";
-import { parseBlockscanTokenTransfers } from "../src/lib/blockscan";
-import { parseMoralisTokens } from "../src/lib/moralis";
 import { parseBlockscoutTokenBalances } from "../src/lib/blockscout";
 
 const USDT_ETH = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
@@ -35,7 +33,7 @@ test("verification needs positive evidence, and never guesses", () => {
   // The contract table is local and definitive.
   assert.equal(verificationOf({ symbol: "USDT", contract: USDT_ETH, chain: "ethereum" }), "verified");
 
-  // An indexer's own verdict counts, even with no market data at all.
+  // An explorer's own verdict counts, even with no market data at all.
   assert.equal(verificationOf({ symbol: "NEW", contract: FAKE, chain: "ethereum", verified: true }), "verified");
 
   // A spam verdict is the one thing that is actively "not real".
@@ -160,27 +158,7 @@ test("the strict filter hides only what was positively judged not real", () => {
   assert.equal(relaxed.counts.unverified, 0);
 });
 
-test("every source's verification verdict is read, and Blockscan's bait is flagged", () => {
-  // Moralis: verified_contract.
-  const moralis = parseMoralisTokens(
-    {
-      result: [
-        {
-          token_address: USDT_ETH,
-          symbol: "USDT",
-          name: "Tether USD",
-          decimals: 6,
-          balance_formatted: "10",
-          verified_contract: true,
-          possible_spam: false,
-          usd_price: 1,
-        },
-      ],
-    },
-    { chain: "ethereum", label: "Ethereum" },
-  );
-  assert.equal(moralis[0].verified, true);
-
+test("the explorer's verification verdict is read", () => {
   // Blockscout: reputation === "verified".
   const blockscout = parseBlockscoutTokenBalances([
     {
@@ -189,21 +167,6 @@ test("every source's verification verdict is read, and Blockscan's bait is flagg
     },
   ]);
   assert.equal(blockscout[0].verified, true);
-
-  // Blockscan transfers: junk names carry the spam flag, because Etherscan sends
-  // no reputation verdict on the free endpoints.
-  const transfers = parseBlockscanTokenTransfers({
-    result: [
-      {
-        contractAddress: JUNK,
-        tokenName: "Visit claim-junk.io to claim 5000 USDT",
-        tokenSymbol: "USDT",
-        tokenDecimal: "6",
-      },
-    ],
-  });
-  assert.equal(transfers.length, 1, "the row itself is kept — the picker decides");
-  assert.equal(transfers[0].symbol, "USDT");
 });
 
 test("the dialog, the import action and the scan all use the new rule", () => {
@@ -231,7 +194,5 @@ test("the dialog, the import action and the scan all use the new rule", () => {
   assert.ok(actions.includes("verificationOf("), "from the same rules, not a client flag");
 
   const scanner = read("lib/wallet-scanner.ts");
-  assert.ok(scanner.includes("verified?: boolean"), "the scan carries the indexer verdict");
-  const blockscan = read("lib/blockscan.ts");
-  assert.ok(blockscan.includes("isSpamToken({ name: ref.name, symbol: ref.symbol })"), "bait is flagged");
+  assert.ok(scanner.includes("verified?: boolean"), "the scan carries the explorer verdict");
 });

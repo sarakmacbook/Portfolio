@@ -120,8 +120,8 @@ export const OFFICIAL_CONTRACTS: Record<string, Record<string, string>> = {
 export const TOKEN_TRUST_CHAINS = Object.keys(OFFICIAL_CONTRACTS);
 
 /**
- * The same table keyed by the canonical (DeBank) chain id, because a scan may
- * call Ethereum `eth` — `canonicalChainId` folds every spelling to one id.
+ * The same table keyed by the canonical chain id, because a scan may call
+ * Ethereum `eth` — `canonicalChainId` folds every spelling to one id.
  */
 const BY_CANONICAL_CHAIN: Record<string, Record<string, string>> = Object.fromEntries(
   Object.entries(OFFICIAL_CONTRACTS).map(([chain, table]) => [canonicalChainId(chain), table]),

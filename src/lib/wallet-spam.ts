@@ -22,7 +22,7 @@
 export type SpamCheckable = {
   name?: string | null;
   symbol?: string | null;
-  /** Blockscout / Routescan reputation flag or DeBank's `is_scam`. */
+  /** Blockscout / Routescan reputation flag. */
   spam?: boolean | null;
   /** Alias some parsers use for the same thing. */
   isSpam?: boolean | null;

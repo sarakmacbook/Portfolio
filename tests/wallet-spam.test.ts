@@ -8,6 +8,7 @@ import {
   spamReasonsOf,
   splitSpam,
 } from "../src/lib/wallet-spam";
+import { normaliseDiscoveredTokens } from "../src/lib/discovered-tokens";
 
 test("real tokens are never flagged as spam", () => {
   const real = [
@@ -49,7 +50,7 @@ test("airdrop wording alone is enough", () => {
   assert.equal(isSpamToken({ name: "Voucher 1000", symbol: "VCHR" }), true);
 });
 
-test("impossible names and indexer flags are caught too", () => {
+test("impossible names and explorer flags are caught too", () => {
   // Zero-width / bidi characters, used to make a fake ticker look real.
   assert.equal(isSpamToken({ name: "USDC\u200B", symbol: "USDC" }), true);
   assert.equal(spamReasonOf({ name: "USDC\u202E", symbol: "USDC" }), "hidden characters");
@@ -124,12 +125,12 @@ test("an emoji-only entry is spam", () => {
   assert.equal(isSpamToken({ name: "", symbol: "ETH" }), false);
 });
 
-test("an indexer's own scam verdict is enough, even with a perfect name", () => {
+test("an explorer's own scam verdict is enough, even with a perfect name", () => {
   // The one case naming rules cannot catch: a scam token called "USDC".
   const impostor = { name: "USDC", symbol: "USDC", spam: true };
   assert.equal(isSpamToken(impostor), true);
   assert.deepEqual(splitSpam([impostor], true).kept, []);
-  // And an entry the indexer cleared stays cleared.
+  // And an entry the explorer cleared stays cleared.
   assert.equal(isSpamToken({ name: "USDC", symbol: "USDC", spam: false }), false);
 });
 
@@ -172,14 +173,25 @@ test("the holdings table filters spam, and spam is never counted in the totals",
   assert.ok(totals.includes("isSpamToken("), "the snapshot and alert totals skip it too");
 });
 
-test("the DeBank scam flag reaches the picker", () => {
-  // `parseDebankTokens` keeps DeBank's `is_scam`, `fromDebank` carries it, and
-  // the shared rule reads it — so a cleanly named scam token is still hidden.
-  const debank = read("lib/debank.ts");
-  assert.ok(debank.includes("is_scam === true"), "the scan reads DeBank's verdict");
-  assert.ok(debank.includes("spam?: boolean"), "a balance can carry it");
+test("explorer spam is dropped before it reaches the picker", () => {
+  // A row an explorer marks as spam never becomes a balance, and the naming
+  // rules below still catch anything that arrives without a verdict.
+  const usdt = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+  const discovered = normaliseDiscoveredTokens([
+    {
+      contract: "0x1111111111111111111111111111111111111111",
+      symbol: "USDT",
+      name: "Visit claim-junk.io to claim 5000 USDT",
+      decimals: 6,
+      quantity: 1,
+      spam: true,
+    },
+    { contract: usdt, symbol: "USDT", name: "Tether USD", decimals: 6, quantity: 2, spam: false },
+  ]);
+  assert.deepEqual(discovered.map((token) => token.contract), [usdt]);
+
   const scanner = read("lib/wallet-scanner.ts");
-  assert.ok(scanner.includes("...(balance.spam ? { spam: true } : {})"), "the scan passes it on");
+  assert.ok(scanner.includes("spam?: boolean"), "a balance can still carry a verdict");
 });
 
 test("junk already in the portfolio can be removed in one click", () => {

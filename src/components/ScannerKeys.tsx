@@ -8,13 +8,14 @@ import {
 import type { ScannerKeyStatus } from "@/lib/scanner-keys";
 
 /**
- * "Scanner API keys" — the in-app home for the three scan keys.
+ * "CoinMarketCap API key" — the in-app home for the optional post-scan key.
  *
- * The scan sources work without a key but read fewer tokens, and the fixes used
- * to be environment variables only. This panel saves a key in the app (encrypted,
- * `scanner-keys`) and shows only a mask of it afterwards. A key stored here wins
- * over `DEBANK_ACCESS_KEY` / `ETHERSCAN_API_KEY` / `MORALIS_API_KEY`, and removing
- * it puts the environment back in charge.
+ * The address scan itself needs no key: it reads public RPCs and explorers.
+ * This panel is only for CoinMarketCap's contract lookup, which runs after the
+ * read and adds verification/price signals. It saves the key in the app
+ * (encrypted, `scanner-keys`) and shows only a mask of it afterwards. A key
+ * stored here wins over `CMC_PRO_API_KEY`, and removing it puts the environment
+ * back in charge.
  *
  * It is rendered inside the add-holding form, so it deliberately uses buttons and
  * imperative action calls instead of nested `<form>` elements, which HTML does
@@ -23,26 +24,15 @@ import type { ScannerKeyStatus } from "@/lib/scanner-keys";
 
 type LoadState = "idle" | "ready" | "error";
 
-export default function ScannerKeys({
-  defaultOpen = false,
-  highlight = "",
-}: {
-  defaultOpen?: boolean;
-  /** Provider whose missing key was just reported by a scan — opens the panel. */
-  highlight?: string;
-}) {
+export default function ScannerKeys() {
   const [statuses, setStatuses] = useState<ScannerKeyStatus[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [databaseConfigured, setDatabaseConfigured] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState("");
   const [notes, setNotes] = useState<Record<string, { ok: boolean; text: string }>>({});
-  /**
-   * Open state is tracked so the disclosure stays open across re-renders. The
-   * caller remounts the panel (keyed on `highlight`) when a scan hits a missing
-   * key, which reopens it on the row that needs one.
-   */
-  const [open, setOpen] = useState(defaultOpen || Boolean(highlight));
+  /** Open state is tracked so the disclosure stays open across re-renders. */
+  const [open, setOpen] = useState(false);
 
   /**
    * Fetches the masked statuses. Nothing is set before the first `await` so this
@@ -64,8 +54,7 @@ export default function ScannerKeys({
     }
   }, []);
 
-  // The panel can mount already open (a scan reported a missing key), so the
-  // statuses are fetched whenever it is open and has none yet.
+  // Nothing is fetched until the panel is opened, so the dialog stays quiet.
   useEffect(() => {
     if (!open || loadState !== "idle") return;
     // Deferred so the effect body does not set state synchronously during render.
@@ -140,24 +129,20 @@ export default function ScannerKeys({
       }}
     >
       <summary className="cursor-pointer font-medium text-slate-700">
-        Scanner API keys{" "}
+        CoinMarketCap API key{" "}
         <span className="font-normal text-slate-400">
           {loadState === "ready"
             ? configuredCount > 0
               ? `(${configuredCount} of ${statuses.length} configured)`
-              : "(optional — the scan works without them)"
+              : "(optional — the scan works without it)"
             : "(optional)"}
         </span>
-        {highlight && loadState === "ready" && !statuses.find((s) => s.id === highlight)?.configured && (
-          <span className="ml-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 ring-1 ring-amber-200">
-            key needed
-          </span>
-        )}
       </summary>
 
       <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
         A key is saved encrypted in the app and never shown again — only its last four characters
-        are displayed. The environment variables still work, and a key saved here wins over them.
+        are displayed. <code className="rounded bg-slate-100 px-1">CMC_PRO_API_KEY</code> still works,
+        and a key saved here wins over it.
       </p>
 
       {!databaseConfigured && (
@@ -167,10 +152,10 @@ export default function ScannerKeys({
         </p>
       )}
 
-      {loadState === "idle" && open && <p className="mt-2 text-[11px] text-slate-400">Loading keys…</p>}
+      {loadState === "idle" && open && <p className="mt-2 text-[11px] text-slate-400">Loading key…</p>}
       {loadState === "error" && (
         <p className="mt-2 text-[11px] text-rose-600">
-          Could not read the saved keys.
+          Could not read the saved key.
           <button type="button" className="ml-1 font-medium underline" onClick={() => void load()}>
             Try again
           </button>
@@ -185,11 +170,7 @@ export default function ScannerKeys({
             return (
               <li
                 key={status.id}
-                className={`rounded-lg border bg-white p-2 ${
-                  highlight === status.id && !status.configured
-                    ? "border-amber-300 ring-1 ring-amber-200"
-                    : "border-slate-200"
-                }`}
+                className="rounded-lg border border-slate-200 bg-white p-2"
               >
                 <div className="flex flex-wrap items-center justify-between gap-1">
                   <span className="font-medium text-slate-700">{status.label}</span>

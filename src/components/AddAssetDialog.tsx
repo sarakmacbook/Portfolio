@@ -14,8 +14,6 @@ import { TYPE_META, money, qty } from "@/lib/format";
 import { playMoneyChimeFromGesture } from "@/lib/sounds";
 import { DEFAULT_DUST_THRESHOLD_USD, normaliseDustThreshold } from "@/lib/wallet-dust";
 import { MIN_LIQUIDITY_USD, MIN_ORGANIC_VOLUME_USD, shortUsd } from "@/lib/organic-volume";
-import { BLOCKSCAN_CHAINS } from "@/lib/blockscan";
-import { MORALIS_CHAINS } from "@/lib/moralis";
 import {
   MIN_MARKET_CAP_USD,
   VERIFIED_LIQUIDITY_USD,
@@ -46,9 +44,6 @@ import {
 import { CAMBODIAN_BANKS, CUSTOM_BANK, type CambodianBank } from "@/lib/cambodian-banks";
 import type { DiscoveredStock } from "@/lib/stock-search";
 import {
-  WALLET_CHAINS,
-  WALLET_CHAIN_LABELS,
-  canonicalChainId,
   shortWalletAddress,
   type ScannedWalletBalance,
 } from "@/lib/wallet-scanner";
@@ -206,28 +201,11 @@ function AddAssetForm({
       return [];
     }
   });
-  /**
-   * Which index answers the scan: DeBank (every chain it indexes) or Blockscan /
-   * Etherscan V2. There is no chain filter any more — every scan covers every
-   * chain both sources know, which is what the picker listed anyway.
-   */
-  const [walletSource, setWalletSource] = useState<"auto" | "blockscan" | "moralis">("auto");
   const [walletBalances, setWalletBalances] = useState<ScannedWalletBalance[]>([]);
   const [scanningWallet, setScanningWallet] = useState(false);
   const [walletScanError, setWalletScanError] = useState("");
   const [walletScanDone, setWalletScanDone] = useState(false);
-  const [walletScanSource, setWalletScanSource] = useState<
-    "debank" | "onchain" | "blockscan" | "moralis" | null
-  >(null);
   const [walletScanNote, setWalletScanNote] = useState("");
-  /**
-   * Which scan source just reported a missing key. The "Scanner API keys" panel
-   * opens and highlights that row, so the fix is one paste away instead of an
-   * environment variable the user may not control.
-   */
-  const [scannerKeyPrompt, setScannerKeyPrompt] = useState<
-    "" | "debank" | "etherscan" | "moralis"
-  >("");
   const [importingWallet, setImportingWallet] = useState(false);
   /** Import the wallet's tokens into a folder, named by the user or by the address. */
   const [walletFileIntoFolder, setWalletFileIntoFolder] = useState(true);
@@ -259,7 +237,7 @@ function AddAssetForm({
   const [walletRequireMarket, setWalletRequireMarket] = useState(true);
   /**
    * The strict default: only tokens the scan could *verify* — an official
-   * contract, an indexer's verdict, or a market deep enough to back the price.
+   * contract, an explorer's verdict, or a market deep enough to back the price.
    * Everything else is counted and one click away, so junk airdrops do not fill
    * the picker while a real holding is never lost.
    */
@@ -501,30 +479,20 @@ function AddAssetForm({
     // filter stays inert instead of reading "not asked" as "not listed".
     setWalletCmcChecked(false);
     setWalletScanDone(false);
-    setScannerKeyPrompt("");
     try {
       const params = new URLSearchParams({
         address: trimmed,
         chain: "auto",
-        source: walletSource,
       });
       const response = await fetch(`/api/wallet/scan?${params.toString()}`);
       const data = (await response.json()) as {
         error?: string;
         balances?: ScannedWalletBalance[];
-        source?: "debank" | "blockscan" | "moralis" | "onchain";
+        source?: "onchain";
         sourceNote?: string;
-        debankNeedsKey?: boolean;
-        blockscanNeedsKey?: boolean;
-        blockscanProOnly?: boolean;
-        blockscanFreeFallback?: boolean;
-        blockscanFreeUnread?: number;
-        blockscanSkippedChains?: number;
-        moralisNeedsKey?: boolean;
         /** CoinMarketCap answered for this scan (so the CMC filter is meaningful). */
         cmcChecked?: boolean;
         cmcListed?: number;
-        moralisSkippedChains?: number;
       };
       if (!response.ok) {
         throw new Error(data.error || "Could not scan that wallet address.");
@@ -536,71 +504,18 @@ function AddAssetForm({
       setWalletScanDone(true);
       // Remembered on this device, so the next scan is one click.
       rememberScannedAddress(trimmed);
-      setWalletScanSource(data.source ?? null);
       setWalletCmcChecked(data.cmcChecked === true);
-      setScannerKeyPrompt(
-        data.source === "moralis" && data.moralisNeedsKey
-          ? "moralis"
-          : data.source === "blockscan" && data.blockscanNeedsKey
-            ? "etherscan"
-            : data.source === "onchain" && data.debankNeedsKey
-              ? "debank"
-              : "",
-      );
-      // Only mention DeBank when it was actually involved, so the picker stays
-      // quiet on a plain on-chain read for Solana / Bitcoin / Tron.
-      // Where the numbers came from, said plainly. DeBank being unavailable is
-      // a smaller scan, not an error — and when the cause is a missing key, the
-      // note says so once and names the fix.
+      // Where the numbers came from, said plainly. The read is direct, so this
+      // is only ever a note about a chain or explorer that could not answer.
       setWalletScanNote(
-        data.source === "moralis"
-          ? [
-              data.moralisNeedsKey
-                ? "Moralis needs an API key — this scan used the other sources. Add one under Scanner API keys below (or set MORALIS_API_KEY); a free key from moralis.com covers every chain here."
-                : data.sourceNote
-                  ? data.sourceNote
-                  : "",
-              data.moralisSkippedChains
-                ? `${data.moralisSkippedChains} chain${data.moralisSkippedChains === 1 ? "" : "s"} were not reached before the time limit; scan again in a moment to cover the rest.`
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" ")
-          : data.source === "blockscan"
-          ? [
-              data.blockscanNeedsKey
-                ? "Blockscan needs an Etherscan API key — this scan fell back to reading the chains directly, so it sees fewer tokens. Add one under Scanner API keys below (or set ETHERSCAN_API_KEY); the key from etherscan.io is free."
-                : data.blockscanFreeFallback
-                  ? `This Etherscan key is on the free plan, so token holdings came from the wallet's transfer history (tokentx → tokenbalance) rather than the paid holdings endpoint — fewer tokens than a paid key sees, but real balances. Prices were looked up separately.${data.blockscanFreeUnread ? ` ${data.blockscanFreeUnread} more token${data.blockscanFreeUnread === 1 ? "" : "s"} were in that history but past the time limit; scan again to cover them.` : ""}`
-                  : data.blockscanProOnly
-                    ? "Blockscan answered, but token holdings need a paid Etherscan plan on that key, and the free transfer history had no tokens either — the tokens below came from the chains directly."
-                    : data.sourceNote
-                      ? data.sourceNote
-                      : "",
-              data.blockscanSkippedChains
-                ? `${data.blockscanSkippedChains} chain${data.blockscanSkippedChains === 1 ? "" : "s"} were not reached before the time limit (Etherscan allows 2 calls a second); scan again in a moment to cover the rest.`
-                : "",
-            ]
-              .filter(Boolean)
-              .join(" ")
-          : data.source !== "onchain"
-            ? ""
-            : data.debankNeedsKey
-              ? "No source could answer — DeBank only lists tokens with an access key. This scan read the chains directly, which sees fewer tokens. Add a free DeBank key under Scanner API keys below (or set DEBANK_ACCESS_KEY) to cover every chain DeBank indexes."
-              : data.blockscanNeedsKey
-                ? "Blockscan needs an Etherscan API key, so this scan read the chains directly — which sees fewer tokens. Add one under Scanner API keys below (or set ETHERSCAN_API_KEY); the key from etherscan.io is free."
-                : data.moralisNeedsKey
-                  ? "Moralis needs an API key, so this scan read the chains directly — which sees fewer tokens. Add one under Scanner API keys below (or set MORALIS_API_KEY); a free key from moralis.com covers every chain here."
-                  : data.sourceNote
-                    ? `Read directly from the chains — ${data.sourceNote}`
-                    : "Read directly from the chains.",
+        data.sourceNote
+          ? `Read directly from the chains — ${data.sourceNote}`
+          : "Read directly from the chains.",
       );
       if (list.length === 0) {
-        // Never say "empty wallet" when the source itself refused.
+        // An empty read is reported plainly, never as a provider failure.
         setWalletScanError(
-          data.sourceNote && data.source === "blockscan"
-            ? data.sourceNote
-            : "No non-zero balances found on that wallet address.",
+          data.sourceNote ?? "No non-zero balances found on that wallet address.",
         );
       } else if (list.length === 1) {
         chooseWalletBalance(list[0], trimmed);
@@ -1258,18 +1173,10 @@ function AddAssetForm({
               <div>
                 <p className="text-sm font-semibold text-slate-900">Add via wallet address</p>
                 <p className="text-xs text-slate-500">
-                  Paste your public wallet address (Ethereum / EVM 0x…, Solana, Bitcoin bc1…, or Tron T…). EVM
-                  wallets are detected with{" "}
-                  <a
-                    href="https://debank.com"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-indigo-600 hover:underline"
-                  >
-                    DeBank
-                  </a>{" "}
-                  — every EVM chain it indexes (100+), prices and logos in one call — and fall back to a
-                  direct on-chain read if it cannot answer.
+                  Paste your public wallet address (Ethereum / EVM 0x…, Solana, Bitcoin bc1…, or Tron T…).
+                  The address is read directly from its chains — public RPCs and explorers, no third-party
+                  token index and no API key — and every non-zero balance comes back with its price and
+                  chain.
                   <strong className="font-medium text-slate-600"> Import all</strong> files the tokens into
                   one folder for this wallet.
                 </p>
@@ -1348,22 +1255,6 @@ function AddAssetForm({
                   </p>
                 ) : null}
               </div>
-              <select
-                className="input sm:w-44"
-                value={walletSource}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setWalletSource(
-                    value === "blockscan" || value === "moralis" ? value : "auto",
-                  );
-                }}
-                aria-label="Where to scan for the tokens"
-                title="Which index is asked for the token list"
-              >
-                <option value="auto">Scan via DeBank</option>
-                <option value="blockscan">Scan via Blockscan</option>
-                <option value="moralis">Scan via Moralis</option>
-              </select>
               <button
                 type="button"
                 className="btn-primary shrink-0"
@@ -1423,31 +1314,6 @@ function AddAssetForm({
                   Recently scanned wallet addresses
                 </span>
               </div>
-            )}
-
-            {walletSource === "blockscan" && (
-              <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                Blockscan is Etherscan&apos;s multichain explorer. Its API (Etherscan V2) reads{" "}
-                {BLOCKSCAN_CHAINS.length} chains with one key, paced at 2 calls a second, so a
-                whole-wallet sweep takes about ten seconds. It needs{" "}
-                <code className="rounded bg-slate-100 px-1">ETHERSCAN_API_KEY</code> — add it in{" "}
-                <strong className="font-medium text-slate-600">Scanner API keys</strong> below; without
-                one the scan still reads the chains directly and says so. A free key falls back to the
-                wallet&apos;s transfer history, so it still finds tokens — that is the cheapest way to
-                scan.
-              </p>
-            )}
-
-            {walletSource === "moralis" && (
-              <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                Moralis is the only source that labels a token as a scam itself
-                (<code className="rounded bg-slate-100 px-1">possible_spam</code>), so airdropped
-                junk is counted as spam instead of having to be spotted by its name. It reads{" "}
-                {MORALIS_CHAINS.length} chains with one{" "}
-                <code className="rounded bg-slate-100 px-1">MORALIS_API_KEY</code> from moralis.com —
-                add it in <strong className="font-medium text-slate-600">Scanner API keys</strong> below;
-                without a key the scan says so and falls back to the other sources.
-              </p>
             )}
 
             <div className="mt-2 space-y-2 rounded-xl border border-indigo-100 bg-white/70 p-2">
@@ -1602,7 +1468,7 @@ function AddAssetForm({
                 Only real market cap (${(MIN_MARKET_CAP_USD / 1_000_000).toFixed(0)}M+)
               </label>
               <span className="font-normal text-[11px] text-slate-400">
-                Official contract, an indexer&apos;s verification, or{" "}
+                Official contract, an explorer&apos;s verification, or{" "}
                 {shortUsd(VERIFIED_LIQUIDITY_USD)}+ of pooled liquidity with{" "}
                 {shortUsd(MIN_ORGANIC_VOLUME_USD)}+ traded in 24h. Unchecked shows every token the
                 scan found, junk included.
@@ -1610,8 +1476,8 @@ function AddAssetForm({
               {!walletCmcChecked && (
                 <span className="font-normal text-[11px] text-slate-400">
                   No CoinMarketCap answer for this scan, so the list is not filtered by it. Add a key
-                  under Scanner API keys (or set <code className="text-[11px]">CMC_PRO_API_KEY</code>)
-                  to turn that filter on.
+                  in the CoinMarketCap API key panel below (or set{" "}
+                  <code className="text-[11px]">CMC_PRO_API_KEY</code>) to turn that filter on.
                 </span>
               )}
             </div>
@@ -1622,37 +1488,16 @@ function AddAssetForm({
               </summary>
               <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-500">
                 <li>
-                  <strong className="font-medium text-slate-600">One source answers</strong> — a scan
-                  asks the source you picked and shows <em>its</em> answer: no second opinion, no
-                  merged long tail, no airdropped look-alikes from an explorer nobody asked about.
-                  Every row then goes through the same checks below.
+                  <strong className="font-medium text-slate-600">Address only</strong> — the scan
+                  reads the address itself: no provider to pick, no API key, and no third-party token
+                  list between the wallet and the results.
                 </li>
                 <li>
-                  <strong className="font-medium text-slate-600">0x… (EVM)</strong> — DeBank by
-                  default, for every chain it indexes, prices included. If DeBank cannot answer, the
-                  other keyed sources are tried in turn (Moralis, then Blockscan) and the chains are
-                  read <strong className="font-medium text-slate-600">only when</strong> none of them
-                  can: public RPC on Ethereum, BNB Chain, Arbitrum, Base, Polygon, Optimism and
-                  Avalanche, plus Blockscout then Routescan.
-                </li>
-                <li>
-                  <strong className="font-medium text-slate-600">Moralis</strong> — the source to pick
-                  when a wallet is full of junk: it returns a `possible_spam` flag per token, so
-                  spam is counted and hidden instead of guessed from the name. One{" "}
-                  <code className="rounded bg-slate-100 px-1">MORALIS_API_KEY</code> (or a key saved
-                  in Scanner API keys),{" "}
-                  {MORALIS_CHAINS.length} chains, prices and logos included.
-                </li>
-                <li>
-                  <strong className="font-medium text-slate-600">Blockscan</strong> — pick it in the
-                  scan menu to ask Etherscan V2 (the API behind blockscan.com) instead: one key,{" "}
-                  {BLOCKSCAN_CHAINS.length} chains, prices included. It is paced at 2 calls a second
-                  and needs{" "}
-                  <code className="rounded bg-slate-100 px-1">ETHERSCAN_API_KEY</code> or a key saved
-                  in Scanner API keys. A free key reads token holdings through the wallet&apos;s
-                  transfer history (<code className="rounded bg-slate-100 px-1">tokentx</code> →{" "}
-                  <code className="rounded bg-slate-100 px-1">tokenbalance</code>); a paid key reads
-                  them in one call per chain, with prices.
+                  <strong className="font-medium text-slate-600">0x… (EVM)</strong> — the native
+                  balance and the well-known tickers are read over public RPC on Ethereum, BNB Chain,
+                  Arbitrum, Base, Polygon, Optimism and Avalanche; every other ERC-20 the wallet holds
+                  is discovered from public explorers (Blockscout, then Routescan). Chains with no RPC
+                  entry are read through the explorers alone.
                 </li>
                 <li>
                   <strong className="font-medium text-slate-600">Solana</strong> — public RPC token
@@ -1661,24 +1506,24 @@ function AddAssetForm({
                   <strong className="font-medium text-slate-600">Tron</strong> — Tronscan.
                 </li>
                 <li>
-                  <strong className="font-medium text-slate-600">Pricing</strong> — the index&apos;s
-                  price is used when it has one; a balance it could not price is quoted from the
-                  market APIs instead of being shown (or filtered) as $0.
+                  <strong className="font-medium text-slate-600">Pricing</strong> — each balance is
+                  quoted from the market APIs, then from the built-in fallback table, instead of being
+                  shown (or filtered) as $0.
                 </li>
                 <li>
                   <strong className="font-medium text-slate-600">Then the checks</strong> — official
                   contract table, a <strong className="font-medium text-slate-600">CoinMarketCap</strong>{" "}
-                  lookup of every contract a scan returns (50 per call), organic 24h volume and
-                  liquidity depth from DexScreener (30 contracts per call).
+                  lookup of every contract the scan returns (50 per call; optional key), organic 24h
+                  volume and liquidity depth from DexScreener (30 contracts per call).
                 </li>
                 <li>
-                  <strong className="font-medium text-slate-600">Limits</strong> — up to 250 tokens
-                  from DeBank, 150 per chain from the explorers, 6–8 s per request.
+                  <strong className="font-medium text-slate-600">Limits</strong> — 150 tokens per
+                  chain from the explorers, 6–8 s per request.
                 </li>
               </ul>
             </details>
 
-            <ScannerKeys key={scannerKeyPrompt || "scanner-keys"} highlight={scannerKeyPrompt} />
+            <ScannerKeys />
 
             {walletScanError && (
               <p className="mt-2 text-xs text-rose-600">{walletScanError}</p>
@@ -1696,13 +1541,6 @@ function AddAssetForm({
                 <p className="text-xs text-slate-500">
                   Found {walletBalances.length} balance{walletBalances.length === 1 ? "" : "s"}
                   {walletScanChainCount > 1 ? ` on ${walletScanChainCount} chains` : ""}
-                  {walletScanSource === "debank"
-                    ? " via DeBank"
-                    : walletScanSource === "blockscan"
-                      ? " via Blockscan"
-                      : walletScanSource === "moralis"
-                        ? " via Moralis"
-                        : ""}
                   {walletSelection.counts.impostor > 0
                     ? ` · ${walletSelection.counts.impostor} look-alike hidden`
                     : ""}
@@ -1749,7 +1587,7 @@ function AddAssetForm({
                   <p className="text-[11px] text-slate-500">
                     {walletSelection.counts.unverified} token
                     {walletSelection.counts.unverified === 1 ? " could" : "s could"} not be verified
-                    as real — no official contract, no indexer check, and no market deep enough
+                    as real — no official contract, no explorer check, and no market deep enough
                     ({shortUsd(VERIFIED_LIQUIDITY_USD)} pooled) to back the price. Airdrop junk
                     almost always lands here.{" "}
                     <button

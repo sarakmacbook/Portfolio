@@ -110,7 +110,7 @@ test("the scan box knows what it is looking at, and what is wrong", () => {
     assert.equal(parsed.status, "valid", address);
     assert.equal(parsed.kind, kind);
     assert.equal(parsed.kindLabel, label);
-    assert.match(addressKindHint(kind), /source menu/);
+    assert.match(addressKindHint(kind), /directly/);
     assert.equal(addressKindLabel(kind), label);
   }
   assert.match(addressKindHint("evm"), /EVM chain/);

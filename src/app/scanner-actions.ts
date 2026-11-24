@@ -10,7 +10,7 @@ import {
 } from "@/lib/scanner-keys";
 
 /**
- * Server actions behind the "Scanner API keys" panel.
+ * Server actions behind the "CoinMarketCap API key" panel.
  *
  * Keys are write-only from the browser's point of view: a save sends the key to
  * the server, which stores it encrypted and answers with the masked statuses —
@@ -29,7 +29,7 @@ export type ScannerKeyActionState = {
 
 function providerFrom(formData: FormData) {
   const value = String(formData.get("provider") ?? "").trim();
-  if (!isScannerProvider(value)) throw new ScannerKeyError("Unknown scan source.");
+  if (!isScannerProvider(value)) throw new ScannerKeyError("Unknown key provider.");
   return value;
 }
 
@@ -57,7 +57,7 @@ export async function saveScannerKeyAction(
   revalidatePath("/", "layout");
   return {
     ok: true,
-    message: `${label} key saved — the next scan will use it.`,
+    message: `${label} key saved — the next scan's contract check will use it.`,
     ts: Date.now(),
   };
 }

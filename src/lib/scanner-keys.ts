@@ -9,27 +9,27 @@ import {
 } from "@/lib/exchange-credentials";
 
 /**
- * API keys for the wallet scanner.
+ * API keys for the checks that run after a wallet scan.
  *
- * The scan sources all work without a key, but each one reads fewer tokens that
- * way — DeBank refuses its keyless routes, and Moralis / Etherscan (Blockscan)
- * simply require one. Those keys used to exist only as environment variables,
- * which meant editing a deployment to paste a key. They can now be added from
- * the app (the "Scanner API keys" panel in the add-holding dialog) and are
- * stored in `app_settings`, encrypted with the same AES-256-GCM store the
- * exchange keys use — `EXCHANGE_CREDENTIALS_KEY` when it is set, otherwise a key
- * generated once and kept beside the ciphertext.
+ * The address scan itself is provider-free: it reads public RPCs and explorers
+ * and needs no key at all. This store exists for the optional post-scan checks
+ * (today: CoinMarketCap's contract lookup), which used to be configurable only
+ * through an environment variable — meaning a deployment had to be edited to
+ * paste a key. They can now be added from the app and are stored in
+ * `app_settings`, encrypted with the same AES-256-GCM store the exchange keys
+ * use — `EXCHANGE_CREDENTIALS_KEY` when it is set, otherwise a key generated
+ * once and kept beside the ciphertext.
  *
  * Rules:
  * - A key saved in the app wins over the environment. Removing it falls back to
- *   the variable again, so both ways of configuring the scanner keep working.
+ *   the variable again, so both ways of configuring the check keep working.
  * - The browser only ever sees a mask (`••••••••7F3A`) and whether a key is
  *   configured — never the key itself.
  * - Every read is defensive: a database that is unreachable simply means "no
- *   saved keys", so a scan still runs from the environment.
+ *   saved keys", so the check still runs from the environment.
  */
 
-export type ScannerProvider = "debank" | "etherscan" | "moralis" | "coinmarketcap";
+export type ScannerProvider = "coinmarketcap";
 
 export type ScannerKeySpec = {
   /** Stable id used in forms, routes and `app_settings`. */
@@ -49,43 +49,13 @@ export type ScannerKeySpec = {
 
 export const SCANNER_KEY_SPECS: ScannerKeySpec[] = [
   {
-    id: "debank",
-    label: "DeBank",
-    envVars: ["DEBANK_ACCESS_KEY"],
-    setting: "scanner.key.debank",
-    docsUrl: "https://cloud.debank.com",
-    usedFor:
-      "The default scan: every EVM chain DeBank indexes, with prices. Without a key DeBank answers an empty list, so the scan falls back to reading chains directly.",
-    format: "AccessKey from cloud.debank.com",
-  },
-  {
-    id: "etherscan",
-    label: "Etherscan (Blockscan)",
-    envVars: ["ETHERSCAN_API_KEY", "BLOCKSCAN_API_KEY"],
-    setting: "scanner.key.etherscan",
-    docsUrl: "https://etherscan.io/myapikey",
-    usedFor:
-      "“Scan via Blockscan” — Etherscan V2 reads every chain it supports with one key. A free key finds tokens through the wallet's transfer history (tokentx → tokenbalance); a paid key reads holdings in one call per chain.",
-    format: "34-character key from etherscan.io/myapikey",
-  },
-  {
-    id: "moralis",
-    label: "Moralis",
-    envVars: ["MORALIS_API_KEY", "MORALIS_APIKEY"],
-    setting: "scanner.key.moralis",
-    docsUrl: "https://admin.moralis.com",
-    usedFor:
-      "“Scan via Moralis” — the only source that flags a token as `possible_spam` itself, and it is preferred automatically in a default scan once a key is set.",
-    format: "Web3 API key from admin.moralis.com",
-  },
-  {
     id: "coinmarketcap",
     label: "CoinMarketCap",
     envVars: ["CMC_PRO_API_KEY", "COINMARKETCAP_API_KEY"],
     setting: "scanner.key.coinmarketcap",
     docsUrl: "https://pro.coinmarketcap.com",
     usedFor:
-      "Contract matching after a scan: every contract the scan returns is looked up on CoinMarketCap, which says which coin an address belongs to, whether the ticker agrees, and its USD price when nothing else could price it. Without a key the contracts stay unverified — never hidden.",
+      "Contract matching after a scan: every contract the direct read returns is looked up on CoinMarketCap, which says which coin an address belongs to, whether the ticker agrees, and its USD price when nothing else could price it. Without a key the contracts stay unverified — never hidden.",
     format: "API key from pro.coinmarketcap.com",
   },
 ];
@@ -95,7 +65,7 @@ export const SCANNER_PROVIDERS: ScannerProvider[] = SCANNER_KEY_SPECS.map((spec)
 /** Long enough for any of these keys, short enough that a paste cannot bloat a row. */
 export const MAX_SCANNER_KEY_LENGTH = 256;
 
-/** The shortest key any of the three sources issues (Etherscan's is 34). */
+/** The shortest key this store accepts (CoinMarketCap's is 34). */
 export const MIN_SCANNER_KEY_LENGTH = 8;
 
 export class ScannerKeyError extends Error {
@@ -128,7 +98,7 @@ export function normaliseScannerKey(value: unknown): string {
   if (!unquoted) throw new ScannerKeyError("Paste your API key first.");
   if (unquoted.length < MIN_SCANNER_KEY_LENGTH) {
     throw new ScannerKeyError(
-      `That key is too short — scanner keys are at least ${MIN_SCANNER_KEY_LENGTH} characters.`,
+      `That key is too short — API keys are at least ${MIN_SCANNER_KEY_LENGTH} characters.`,
     );
   }
   if (unquoted.length > MAX_SCANNER_KEY_LENGTH) {
@@ -206,7 +176,7 @@ export function resolveScannerKey(
   return { key: "", source: "none", hint: "", savedAt: null };
 }
 
-/** What the browser is allowed to know about one scanner key. */
+/** What the browser is allowed to know about one stored key. */
 export type ScannerKeyStatus = {
   id: ScannerProvider;
   label: string;
@@ -251,12 +221,8 @@ export function buildScannerKeyStatuses(
   });
 }
 
-/** Every key the scanner should use, in the shape `scanWalletAddress` wants. */
+/** Every key the post-scan checks should use. */
 export type ScannerKeys = {
-  debank: string;
-  /** Etherscan V2, the API behind Blockscan. */
-  blockscan: string;
-  moralis: string;
   /** CoinMarketCap, used by the trust pass to match contracts after a scan. */
   coinmarketcap: string;
 };
@@ -327,14 +293,11 @@ export async function getScannerKeys(): Promise<ScannerKeys> {
   const keyFor = (provider: ScannerProvider) =>
     resolveScannerKey(scannerKeySpec(provider), { stored: stored[provider] ?? null }).key;
   return {
-    debank: keyFor("debank"),
-    blockscan: keyFor("etherscan"),
-    moralis: keyFor("moralis"),
     coinmarketcap: keyFor("coinmarketcap"),
   };
 }
 
-/** Masked status for every scanner key — what the settings panel renders. */
+/** Masked status for every stored key — what the settings panel renders. */
 export async function getScannerKeyStatuses(): Promise<ScannerKeyStatus[]> {
   let stored: Partial<Record<ScannerProvider, StoredScannerKey | null>> = {};
   try {
