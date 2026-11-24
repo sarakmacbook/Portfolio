@@ -11,7 +11,7 @@ type Props = {
   symbol: string;
   name?: string;
   wallet?: Web3WalletId | string;
-  /** Token artwork from an indexer (DeBank). Falls back to CoinCap by ticker. */
+  /** Token artwork from an explorer. Falls back to CoinCap by ticker. */
   logo?: string;
   className?: string;
 };
@@ -182,7 +182,7 @@ export default function CryptoLogo({
 
   const ticker = symbol.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
   const initials = (symbol || name || "?").slice(0, 4).toUpperCase();
-  // DeBank's artwork already matches the token the scanner saw; CoinCap is the
+  // Explorer artwork already matches the token the scanner saw; CoinCap is the
   // ticker-based fallback.
   const imageUrl = logo || (ticker ? `https://assets.coincap.io/assets/icons/${ticker}@2x.png` : "");
 
@@ -193,7 +193,7 @@ export default function CryptoLogo({
     >
       {initials}
       {imageUrl && !failed && (
-        // DeBank and CoinCap both expose public token icons; no API key is needed.
+        // CoinCap exposes public token icons; no API key is needed.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imageUrl}

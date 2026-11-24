@@ -1,5 +1,5 @@
 /**
- * Stablecoin detection, shared by the wallet scanner and the DeBank client.
+ * Stablecoin detection, shared across the wallet scanner and its tests.
  *
  * A stablecoin is stored with `cryptoCategory = "stablecoin"` so the Holdings
  * tabs and the allocation donut can split it from volatile crypto. The list is

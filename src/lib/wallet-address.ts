@@ -21,10 +21,10 @@ const KIND_LABELS: Record<WalletAddressKind, AddressKindLabel> = {
 };
 
 const KIND_HINTS: Record<WalletAddressKind, string> = {
-  evm: "Every EVM chain is scanned at once — Ethereum, Base, Arbitrum and everything else DeBank indexes.",
-  solana: "Read from the Solana RPC directly; the source menu above only applies to EVM addresses.",
-  bitcoin: "Read from a Bitcoin explorer directly; the source menu above only applies to EVM addresses.",
-  tron: "Read from a Tron explorer directly; the source menu above only applies to EVM addresses.",
+  evm: "Every EVM chain is read at once — Ethereum, Base, Arbitrum and every other chain the explorers cover.",
+  solana: "Read from the Solana RPC directly.",
+  bitcoin: "Read from a Bitcoin explorer directly.",
+  tron: "Read from a Tron explorer directly.",
 };
 
 export function addressKindLabel(kind: WalletAddressKind): AddressKindLabel {

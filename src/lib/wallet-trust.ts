@@ -5,7 +5,7 @@
  * Two different lies arrive in the same scan result:
  *
  *   - a **fake contract** using a real symbol (`USDT` deployed yesterday)
- *   - a **token with no market** — nobody trades it, so the price the indexer
+ *   - a **token with no market** — nobody trades it, so the price an explorer
  *     shows is whatever the minter typed in
  *
  * Both are answered here and both stay *optional*: this module never deletes a
@@ -37,7 +37,7 @@ import { contractStatusOf, normaliseEvmContract, type ContractStatus } from "@/l
 /**
  * Where a token stands on being *real*, as opposed to merely present.
  *
- *   verified   — an issuer/indexer says so, or it trades in a deep market
+ *   verified   — an issuer or explorer says so, or it trades in a deep market
  *   unverified — positive evidence of junk: a spam verdict, or a market known
  *                to be too thin to back the price it shows
  *   unknown    — nothing could be checked (no explorer, no market answer)
@@ -64,7 +64,7 @@ export type TrustSignals = {
   washSuspected?: boolean;
   /** The scan's own verdict (see `Verification`). */
   verification?: Verification;
-  /** Why it was verified — "official contract", "indexer", "deep market", "CoinMarketCap". */
+  /** Why it was verified — "official contract", "explorer", "deep market", "CoinMarketCap". */
   verifiedBy?: string[];
   /** CoinMarketCap's id, name and slug for the coin this contract belongs to. */
   cmcId?: number;
@@ -93,9 +93,9 @@ type TrustableBalance = {
   name?: string | null;
   contract?: string | null;
   chain?: string | null;
-  /** The indexer's spam verdict (DeBank `is_scam`, Moralis `possible_spam`, …). */
+  /** An explorer's spam verdict (a reputation flag). */
   spam?: boolean | null;
-  /** The indexer's verification (DeBank `is_verified`, Moralis `verified_contract`, …). */
+  /** An explorer's verification verdict (Blockscout/Routescan `verified`). */
   verified?: boolean | null;
   /** Enough to be re-priced by CoinMarketCap when nothing else had a price. */
   quantity?: number;
@@ -160,7 +160,7 @@ export function isLargeCap(value: number | undefined): boolean {
 /**
  * The verification verdict for one balance, from what the scan already knows.
  *
- * Verified by any of: the official-contract table, the indexer's own verdict, or
+ * Verified by any of: the official-contract table, an explorer's own verdict, or
  * a deep market with real organic volume. Unverified only on positive evidence —
  * a spam flag, or market numbers that show the price is not backed by anything.
  */
@@ -200,7 +200,7 @@ export function verifiedByOf(balance: TrustableBalance & TrustSignals): string[]
   const status = balance.contractStatus ?? contractStatusOf(balance);
   if (status === "official") reasons.push("official contract");
   if (balance.cmcVerified === true) reasons.push("CoinMarketCap");
-  if (balance.verified === true) reasons.push("indexer");
+  if (balance.verified === true) reasons.push("explorer");
   if (isLargeCap(balance.marketCapUsd)) reasons.push("large market cap");
   if (
     reasons.length === 0 &&
@@ -442,7 +442,7 @@ export type ScanSelection<T> = {
   thin: T[];
   /** Worth less than the dust cut-off. */
   dust: T[];
-  /** Not verified: no issuer, no indexer verdict, and no deep market behind it. */
+  /** Not verified: no issuer, no explorer verdict, and no deep market behind it. */
   unverified: T[];
   /** CoinMarketCap does not list this contract (see `onlyCmc`). */
   unlisted: T[];

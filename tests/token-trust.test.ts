@@ -58,7 +58,7 @@ test("the official table matches the real contract, on the right chain", () => {
   assert.equal(
     contractStatusOf({ symbol: "usdt", contract: USDT_ETH.toLowerCase(), chain: "eth" }),
     "official",
-    "DeBank's `eth` is the same chain as `ethereum`",
+    "The `eth` spelling is the same chain as `ethereum`",
   );
   assert.equal(contractStatusOf({ symbol: "USDC", contract: USDC_BASE, chain: "base" }), "official");
   // Bridged variants are their own symbol, so they stay official rather than fake.

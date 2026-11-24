@@ -1,10 +1,10 @@
 /**
  * Token discovery through Blockscout.
  *
- * DeBank answers "no tokens" for a wallet unless it is given an access key, so
- * the direct on-chain read has to do the discovery itself. Reading balances over
- * RPC only works for tokens you already know the address of — which is why a
- * wallet used to show a handful of hard-coded tickers and miss everything else.
+ * Reading balances over RPC only works for tokens you already know the address
+ * of — which is why a wallet would otherwise show a handful of hard-coded
+ * tickers and miss everything else. This module is the discovery half of the
+ * direct address read.
  *
  * Blockscout is an open-source explorer with public, keyless instances on many
  * chains, and its account API lists *every* ERC-20 a wallet holds:

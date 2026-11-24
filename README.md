@@ -23,10 +23,10 @@ the deployment before storing real portfolio data (see the
 - **Exchange balance import** from Binance, OKX and Bybit with read-only API
   keys: balances are fetched server-side, signed locally, and booked into the
   portfolio as deposits — re-syncing applies only what changed.
-- **Add via wallet address**: paste a public address and DeBank detects every
-  token on every EVM chain (prices and logos included) in one call, with a direct
-  on-chain read of public RPCs as the fallback — and Solana, Bitcoin and Tron
-  supported natively. Import one token or all of them at once.
+- **Add via wallet address**: paste a public address and the app reads every
+  token it holds directly from the chains — public RPCs plus the Blockscout /
+  Routescan explorers, no third-party token index and no API key — with Solana,
+  Bitcoin and Tron supported natively. Import one token or all of them at once.
 - **Holdings folders**: group positions ("Long term", "Binance", "Play money"),
   give each folder an exchange logo, emoji or an image from your files, then drag
   a holding onto a folder to file it. Folder headers show their own total.
@@ -122,9 +122,9 @@ the form for you (or imports everything it finds). The **+ Add asset** button
 lives in **⇅ Arrange layout** mode on the dashboard:
 
 1. Paste the address — `0x…` for any EVM chain, a Solana base58 address, a
-   Bitcoin `bc1…` / `1…` address, or a Tron `T…` address — and choose where to
-   scan: **DeBank** (the default) or **Blockscan** (Etherscan). Every chain the
-   chosen source knows is covered; there is no chain filter to set.
+   Bitcoin `bc1…` / `1…` address, or a Tron `T…` address. The address is read
+   directly from its chains: public RPCs plus the Blockscout / Routescan
+   explorers. There is no provider to choose and no chain filter to set.
 
    The box does not need a bare address (`src/lib/wallet-address.ts`): paste an
    **explorer link** (`etherscan.io/address/0x…`, `solscan.io/account/…`,
@@ -143,8 +143,8 @@ lives in **⇅ Arrange layout** mode on the dashboard:
    most, `ledgerly-recent-wallet-addresses`) and shown as **Recent:** chips you
    can click to rescan or × to forget.
 2. Click **Scan wallet**. Every non-zero balance comes back with its quantity,
-   USD price, value, chain and logo — across every chain DeBank indexes, not
-   just the popular ones this app can read by itself.
+   USD price, value and chain — the native coins and well-known tickers from the
+   RPCs, plus every other ERC-20 the explorers report.
 3. Every token arrives **ticked**, as a card in a grid — not one long sideways
    scroll. A wallet spread over twenty chains is **grouped by chain**, biggest
    first, with each chain's token count and USD total in its header and a *Tick
@@ -186,7 +186,7 @@ lives in **⇅ Arrange layout** mode on the dashboard:
    won…*, *claim your…*, *receive your…*), an amount of a real ticker printed in
    the name (*5,000 USDT*), zero-width/bidi characters used to fake a ticker, a
    name and symbol with no letters at all (*🎁🎁*), an impossibly long name or
-   symbol, or a spam / `is_scam` flag the indexer sent. Real names are left alone
+   symbol, or a spam flag an explorer sent. Real names are left alone
    — *Ethena USDe*, *Renzo Restaked ETH*, *First Digital USD*, *1inch*, *🐸 Pepe*
    and friends are checked in `tests/wallet-spam.test.ts`. It is a filter, never a
    delete: the scan line counts what was hidden and *show the suspects* brings
@@ -233,7 +233,7 @@ lives in **⇅ Arrange layout** mode on the dashboard:
 The hand-kept table only knows big issuers. `src/lib/coinmarketcap.ts` asks
 `GET /v2/cryptocurrency/info?address=…` about **every contract a scan returns**
 (50 per request, at most 150 per scan; `CMC_PRO_API_KEY` from the environment or
-the *Scanner API keys* panel), which answers three things the table cannot:
+the *CoinMarketCap API key* panel), which answers three things the table cannot:
 
 - **Which coin an address belongs to** — id, name, slug and ticker. A contract
   the table has never heard of but CMC lists, with a ticker that agrees, becomes
@@ -298,64 +298,71 @@ ignores the filter so nothing becomes impossible to drag into a folder.
 ### How a scan finds tokens
 
 The address decides the method; `src/lib/wallet-scanner.ts` is the only place
-that talks to the network about a wallet.
+that talks to the network about a wallet. There is **no token index in front of
+the scan**: the address is read directly from its chains, so there is no provider
+to choose, no API key to configure, and no third-party list that can refuse.
 
 | Address | How the tokens are found |
 | --- | --- |
-| `0x…` (EVM) | **One source answers.** DeBank by default — every chain it indexes in one call, prices included. Pick *Blockscan* or *Moralis* in the menu and that source answers alone. If the chosen source cannot answer (no key, a refusal, nothing found), the others are tried in turn and the chains are read **only as a last resort**: public RPCs on Ethereum, BNB Chain, Arbitrum, Base, Polygon, Optimism and Avalanche, plus **Blockscout → Routescan**. A scan is no longer two reads merged. |
+| `0x…` (EVM) | Public RPCs on Ethereum, BNB Chain, Arbitrum, Base, Polygon, Optimism and Avalanche read the native coin and the well-known tickers (`eth_getBalance` plus a batched `balanceOf` per chain). Every other ERC-20 is discovered from public explorers — **Blockscout** first, then **Routescan** — which list the wallet's whole token portfolio and its balances. Chains with no RPC entry are read through the explorers alone. |
 | Solana | The public Solana RPC (`solana-rpc.publicnode.com`, then `api.mainnet-beta.solana.com`) reads the wallet's token accounts and the known mints. |
 | Bitcoin | `mempool.space`, falling back to `blockstream.info`. |
 | Tron | `apilist.tronscanapi.com/api/accountv2`. |
 
-**Blockscan** is the other choice in the scan menu (*Scan via Blockscan*).
-Blockscan is Etherscan's multichain explorer and its data comes from **Etherscan
-V2** (`https://api.etherscan.io/v2/api`) — one key for 60+ chains, with `chainid`
-choosing the network. The sweep asks
-`module=account&action=addresstokenbalance` per chain (token balances *and*
-`TokenPriceUSD`) and its answer is the scan's answer — with the chains as the
-fallback if Etherscan refuses, so a refusal never turns into an empty wallet:
+Only chains with a public Blockscout or Routescan instance can be *discovered*
+beyond the hand-listed tickers — today that is 14 Blockscout chains (Ethereum,
+Base, Optimism, Arbitrum, Polygon, Gnosis, zkSync, Scroll, Linea, Mantle, Zora,
+Mode, Celo, Aurora) and 56 Routescan ones, with Routescan as the fallback where
+Blockscout has no public instance (Base, for example). A chain with an RPC entry
+but no explorer still reports its native coin and the listed tickers over RPC.
 
-- **Needs a key.** `ETHERSCAN_API_KEY` (or `BLOCKSCAN_API_KEY`). Without one the
-  sweep is skipped, the scan falls back to the direct read, and the dialog says so
-  and names the fix.
-- **Token holdings are a PRO endpoint — but a free key still finds tokens.**
-  Etherscan answers *"not available on your plan"* to
-  `action=addresstokenbalance`; the sweep then uses the two free endpoints
-  instead: `action=tokentx` (the wallet's ERC-20 transfer history, which names
-  each token's contract, symbol and decimals) and one `action=tokenbalance` per
-  contract to read the live balance. That path is capped at 12 contracts and 6 s
-  per sweep (`BLOCKSCAN_FREE_MAX_CONTRACTS`, `BLOCKSCAN_FREE_BUDGET_MS`), reports
-  how many contracts it could not reach, and returns balances without prices — the
-  scanner prices them through its normal market lookup, so nothing shows as $0
-  dust. The dialog says the scan used the transfer history rather than the paid
-  holdings endpoint.
-- **2 calls a second.** `src/lib/blockscan.ts` walks the 14 chains this app also
-  prices, one token call per chain, 550 ms apart, inside a 12 s budget; chains the
-  budget did not reach are counted in the note. A single-chain scan (pick the
-  chain in the menu) also reads that chain's native coin.
-- **Also automatic.** In a DeBank scan, if DeBank cannot answer and an Etherscan
-  key is configured, this sweep runs instead of settling for the smaller direct
-  read — the result then says `via Blockscan` and why. API callers can force it
-  with `?source=blockscan` on `/api/wallet/scan`.
+Each EVM chain is read from two sides at once:
 
-**Moralis** is the third choice (*Scan via Moralis*), and the one to pick when a
-wallet is drowning in airdropped junk. Its
-`GET /wallets/{address}/tokens?chain=…` returns, per token, the quantity, USD
-price and value, the logo — and `possible_spam`, its own scam verdict. That flag
-becomes the same `spam` field the naming rules produce, so a scam token called
-`USDC` is counted under *N spam-looking hidden* and can be revealed, instead of
-having to be guessed from its name.
+- **RPC** gives the native coin balance and the handful of well-known tickers.
+- **Explorers** give the wallet's whole ERC-20 portfolio — including tokens
+  nobody hand-listed, such as LayerZero (`ZRO`) on Base. Two keyless sources are
+  used per chain: public **[Blockscout](https://www.blockscout.com)** instances
+  (`tokenlist` first, then `token-balances`), and
+  **[Routescan](https://routescan.io)**'s Etherscan-compatible
+  `addresstokenbalance` API, which covers chains Blockscout has no public
+  instance for (BNB Chain, Avalanche, …) and steps in when Blockscout is
+  rate-limited. Spam-marked tokens are dropped.
 
-- **One call per chain**, `X-API-Key` header, `MORALIS_API_KEY`. Fourteen chains,
-  three requests at a time, 8 s timeout inside a 12 s budget.
-- **Nothing is excluded server-side.** `exclude_spam=false` is always sent: the
-  app marks and counts what it hides, so a spam token never disappears without a
-  *Show them* to bring it back.
-- **Preferred when configured.** A default scan with `MORALIS_API_KEY` set asks
-  Moralis first (its spam verdict is the reason), keeps DeBank and Blockscan as
-  the fallbacks, and says `via Moralis` in the result. Without a key the option
-  explains itself and the scan uses the other sources.
-- API callers can force it with `?source=moralis` on `/api/wallet/scan`.
+**Pricing** — a balance the read could not price is quoted from the market APIs,
+then from the built-in fallback table, so a real token is never shown (or
+filtered away) as $0 dust.
+
+**Trust pass** (`/api/wallet/scan` → `wallet-trust`) — official contract
+address, organic 24 h volume and liquidity depth per contract, from the local
+table, a batched **CoinMarketCap** contract lookup (50 addresses per call) and
+one batched DexScreener call (30 contracts each). Failures leave a token
+*unknown*, never hidden.
+
+**Filters in the dialog** — look-alike contracts, spam, no real market, ties to
+CoinMarketCap (only tokens it lists for that contract, skipped entirely when it
+did not answer) and dust are each counted with a *Show them*, and only ticked
+tokens are imported.
+
+A scan covers every chain (API callers can still narrow it with `?chain=` on
+`/api/wallet/scan`; the filter understands both spellings — `ethereum` and `eth`
+are the same chain). Chains with no RPC token list (zkSync, Linea, Scroll,
+Mantle, Blast, Fantom, Gnosis, Cronos, plus Zora, Sonic, Celo, Mode, Unichain and
+Berachain) are read through the explorers, so they report ERC-20s but not their
+native coin. Explorer discovery is capped at 150 tokens per chain and runs 7 s
+per Blockscout call / 8 s per Routescan call, two pages of 100, so a dead
+endpoint cannot stall the dialog.
+
+Notes:
+
+- Read-only: no keys, signatures or approvals. The address is only used for the
+  lookup and is written into the holding's note (`Wallet: 0x… (0x1234…abcd) ·
+  Chain: Arbitrum · Contract: 0x…`) so you can tell two identical tokens on
+  different chains apart.
+- USD-pegged tickers (`USDT`, `USDC`, `DAI`, `USDe`, …) are filed as
+  **Stablecoins** automatically; everything else is volatile crypto.
+- Unpriced airdrop spam an explorer recognises is dropped before it reaches the
+  picker. A token an explorer marks as verified but has no price for is still
+  listed.
 
 ### Junk tokens: the strict filter
 
@@ -369,7 +376,7 @@ Each balance leaves the scan with a verdict (`verificationOf`, in
 
 | Verdict | Meaning | Shown by default |
 | --- | --- | --- |
-| `verified` | the official-contract table matches, **or** the indexer verified it (DeBank `is_verified`, Moralis `verified_contract`, Blockscout/Routescan `verified` reputation), **or** it trades in a deep market | yes |
+| `verified` | the official-contract table matches, **or** an explorer verified it (a Blockscout/Routescan `verified` reputation), **or** it trades in a deep market | yes |
 | `unverified` | positive evidence of junk: a spam verdict, or market numbers that cannot back the price — no pairs on a chain DexScreener indexes, or less than $25k pooled with $100 traded | no — counted, one click from *Show them* |
 | `unknown` | nothing could be checked (no explorer, a chain DexScreener does not index, a rate limit) | yes — a missing answer is never evidence |
 
@@ -380,161 +387,36 @@ market* and dust cut-off. The summary says how many were hidden and why, and
 the same rules server-side (`skipUnverified` in `importWalletBalances`), so a
 stale page cannot book junk either.
 
-Two supporting changes make the verdicts worth having:
+The explorer's own `verified` reputation travels with the balance, so a token an
+explorer vouches for is not hidden just because DexScreener has not indexed its
+pool yet.
 
-- **Every source's verdict is read now.** DeBank's `is_verified`, Moralis'
-  `verified_contract` and the Blockscout/Routescan `verified` reputation travel
-  with the balance, so a token an explorer vouches for is not hidden just because
-  DexScreener has not indexed its pool yet.
-- **Blockscan's free transfer-history path flags bait by name.** Etherscan sends
-  no reputation verdict on `tokentx`/`tokenbalance`, so the naming rules
-  (`wallet-spam`) run on those rows — airdrop junk arrives in a transfer history
-  more than anywhere else.
+### CoinMarketCap API key — optional post-scan check
 
-### Scanner API keys — added in the app, no redeploy
+The address scan itself needs **no key**. One optional key exists for the checks
+that run *after* a read: the CoinMarketCap contract lookup used by the trust
+pass. It can be added from the app: **Add holding → Crypto → Add via wallet
+address → CoinMarketCap API key**. Paste the key, press **Save key**, and the
+next scan's contract check uses it. The panel shows the key's state — *Saved in
+app*, *From environment* or *No key* — with only the last four characters
+(`••••••••7F3A`).
 
-All three scan keys (DeBank, Etherscan/Blockscan, Moralis) can be added from the
-app: **Add holding → Crypto → Add via wallet address → Scanner API keys**. Paste
-the key, press **Save key**, and the next scan uses it. The panel shows each
-source's state — *Saved in app*, *From environment* or *No key* — with only the
-last four characters of the key (`••••••••7F3A`).
-
-- **Encrypted at rest.** Keys live in `app_settings`
-  (`scanner.key.debank` / `scanner.key.etherscan` / `scanner.key.moralis`) sealed
-  with AES-256-GCM by the same store the exchange keys use: `EXCHANGE_CREDENTIALS_KEY`
-  when it is set, otherwise a generated key kept beside the ciphertext.
-  `src/lib/scanner-keys.ts` owns the format.
-- **Saved key wins; the environment is the fallback.** `DEBANK_ACCESS_KEY`,
-  `ETHERSCAN_API_KEY` (alias `BLOCKSCAN_API_KEY`) and `MORALIS_API_KEY` (alias
-  `MORALIS_APIKEY`) keep working, and **Remove** deletes the saved row so the
-  variable takes over again. Nothing needs to be migrated either way.
+- **Encrypted at rest.** The key lives in `app_settings`
+  (`scanner.key.coinmarketcap`) sealed with AES-256-GCM by the same store the
+  exchange keys use: `EXCHANGE_CREDENTIALS_KEY` when it is set, otherwise a
+  generated key kept beside the ciphertext. `src/lib/scanner-keys.ts` owns the
+  format.
+- **Saved key wins; the environment is the fallback.** `CMC_PRO_API_KEY` (alias
+  `COINMARKETCAP_API_KEY`) keeps working, and **Remove** deletes the saved row so
+  the variable takes over again. Nothing needs to be migrated either way.
 - **Write-only from the browser.** `GET /api/wallet/scan/keys` returns masks and
   provenance only; saving and removing go through the server actions in
   `src/app/scanner-actions.ts`. The key itself is never echoed back.
-- **Wired into every scan.** `/api/wallet/scan` resolves the keys with
-  `getScannerKeys()` and passes them to the scanner, which hands each one to its
-  client (`fetchDebankBalances`, `fetchBlockscanBalances`, `fetchMoralisBalances`).
-  A default scan still prefers Moralis when a key exists, and a DeBank scan still
-  falls back to Blockscan — with the saved keys, not just the environment.
-- **A missing key points at the panel.** When a scan reports *"needs a key"*, the
-  Scanner API keys panel opens and highlights that row instead of only naming an
-  environment variable.
-- **No database, no saved keys.** Without a connection the panel says so and the
-  environment variables remain the only way to configure a key.
-
-Only chains with a public Blockscout or Routescan instance can be *discovered*
-beyond the hand-listed tickers — today that is 14 Blockscout chains (Ethereum,
-Base, Optimism, Arbitrum, Polygon, Gnosis, zkSync, Scroll, Linea, Mantle, Zora,
-Mode, Celo, Aurora) and 56 Routescan ones, with Routescan as the fallback where
-Blockscout has no public instance (Base, for example). A chain that has neither
-still reports its native coin and the listed tickers over RPC; nothing is hidden
-because a third party is missing.
-
-**One source answers; the chains are the fallback** (not a second opinion):
-
-1. **The source you picked** (EVM only) — DeBank by default
-   (`pro-openapi.debank.com` with a key, otherwise the keyless `api.debank.com`
-   and `api.rabby.io` routes in turn; 6 s per request, 12 s total budget, at most
-   250 tokens), or Blockscan / Moralis from the menu.
-2. **The other keyed sources**, in turn — Moralis then Blockscan — but only when
-   the chosen one could not answer at all (no key, a refusal, nothing found).
-3. **The chains as the last resort** — `eth_getBalance` plus batched `balanceOf`
-   for the known tickers over public RPCs, and the explorer discovery call
-   (7 s Blockscout / 8 s Routescan, two pages of 100, at most 150 tokens per
-   chain, spam-flagged tokens dropped). This is the only path that reads every
-   ERC-20 an explorer can enumerate, and it therefore sees far more junk; it runs
-   only when nothing else answered.
-4. **Pricing** — the index's live price is used when it has one; a row it could
-   not price is quoted from the market APIs, then from the built-in fallback
-   table, so a real token is never shown (or filtered away) as $0 dust.
-4. **Trust pass** (`/api/wallet/scan` → `wallet-trust`) — official contract
-   address, organic 24 h volume and liquidity depth per contract, from the local
-   table, a batched **CoinMarketCap** contract lookup (50 addresses per call) and
-   one batched DexScreener call (30 contracts each). Failures leave a token
-   *unknown*, never hidden.
-5. **Filters in the dialog** — look-alike contracts, spam, no real market, ties to
-   CoinMarketCap (only tokens it lists for that contract, skipped entirely when it
-   did not answer) and dust are each counted with a *Show them*, and only ticked
-   tokens are imported.
-
-EVM addresses are read through **[DeBank](https://debank.com)**, which indexes
-**every EVM chain it supports — 100+ of them**, from Ethereum, BNB Chain,
-Arbitrum, Base and Polygon to Sonic, Zora, Berachain, Unichain, Ink, HyperEVM and
-whatever it added last week. One call returns all of them together, with prices
-and logos, so no per-chain RPC trip or per-token quote lookup is needed. The
-result says **via DeBank** and counts the chains it found, so it is clear where
-the numbers came from.
-
-That list is not hard-coded here. A chain id this app has never seen is still
-kept, listed and imported; its display name is read from DeBank's own
-`/v1/chain/list` (cached for six hours) and falls back to the upper-cased id
-(`AERO`) if even that is unavailable. A scan always covers every chain; API
-callers can still narrow it with `?chain=` on `/api/wallet/scan`, and that filter
-understands both spellings — `ethereum` and DeBank's `eth` are the same chain.
-
-DeBank's keyless routes get blocked, renamed and rate-limited, so three are tried
-in order before giving up: DeBank's API gateway
-(`api.debank.com/v1/user/token_list`), its legacy web route
-(`api.debank.com/token/balance_list?user_id=…`) and Rabby's public API
-(`api.rabby.io`), which reads the same indexer. If all three answer with an empty
-list, one more call asks for *every* token (`is_all=true`) before the app
-concludes the wallet really holds nothing.
-
-Two things follow:
-
-- Add a free **`DEBANK_ACCESS_KEY`** (from <https://cloud.debank.com>) to use the
-  supported Open API and get the reliable path — one request, no fallbacks. See
-  `.env.example`. **This is now the expected setup**: DeBank increasingly refuses
-  the keyless routes, and then the app can only read the fifteen chains it knows
-  how to read by itself.
-- Without a key the scan still works, just smaller: it reads balances straight
-  from public RPCs and the Blockscout / Routescan explorers and the dialog says so quietly — *"Read
-  directly from the chains — DeBank only lists tokens with an access key … Add a
-  free DEBANK_ACCESS_KEY to cover every chain DeBank indexes."* DeBank serves an
-  **empty list** to unauthenticated callers even for a wallet full of tokens, so
-  an empty keyless answer is now reported as "give DeBank a key", never as "this
-  wallet is empty".
-
-The direct read does not just look up a fixed ticker list. Each chain is read from
-two sides at once:
-
-- **RPC** gives the native coin balance and the handful of well-known tickers.
-- **Explorers** give the wallet's whole ERC-20 portfolio — including tokens nobody
-  hand-listed, such as LayerZero (`ZRO`) on Base. Two keyless sources are used per
-  chain: public **[Blockscout](https://www.blockscout.com)** instances (`tokenlist`
-  first, then `token-balances`), and **[Routescan](https://routescan.io)**'s
-  Etherscan-compatible `addresstokenbalance` API, which covers chains Blockscout
-  has no public instance for (BNB Chain, Avalanche, …) and steps in when
-  Blockscout is rate-limited. Spam-marked tokens are dropped.
-
-A scan is **one source**, not a merge. DeBank's answer (or Blockscan's, or
-Moralis') is what the picker shows — with its prices and its metadata — because
-merging a second read doubled every scan's cost and pulled in every airdropped
-look-alike an explorer could enumerate. The chains are read only when the chosen
-source cannot answer, so a refusal still never means "empty wallet".
-
-Every chain either scan covers is read, including the ones with no RPC token
-list (zkSync, Linea, Scroll, Mantle, Blast, Fantom, Gnosis, Cronos, plus Zora,
-Sonic, Celo, Mode, Unichain and Berachain): they are read through the explorers,
-so they report ERC-20s but not their native coin.
-
-A refusal is never reported as an empty wallet. DeBank answers `200 OK` with
-`{ "error_code": 1, "error_message": … }` when it wants a key or is rate-limiting,
-and that body is now read as a refusal (with DeBank's own wording in the note)
-instead of "DeBank returned no tokens for that wallet". Only an explicit empty
-list means the wallet is empty.
-
-Notes:
-
-- Read-only: no keys, signatures or approvals. The address is only used for the
-  lookup and is written into the holding's note (`Wallet: 0x… (0x1234…abcd) ·
-  Chain: Arbitrum · Contract: 0x…`) so you can tell two identical tokens on
-  different chains apart.
-- USD-pegged tickers (`USDT`, `USDC`, `DAI`, `USDe`, …) are filed as
-  **Stablecoins** automatically; everything else is volatile crypto.
-- Unpriced airdrop spam that DeBank does not recognise is skipped, so the picker
-  stays readable. A token DeBank marks as verified but has no price for is still
-  listed.
+- **Wired into the trust pass.** `/api/wallet/scan` resolves the key with
+  `getScannerKeys()` and hands it to `enrichTokenTrust`. Without one every
+  contract simply stays unverified — never hidden.
+- **No database, no saved key.** Without a connection the panel says so and the
+  environment variable remains the only way to configure the key.
 
 ## Arrange the dashboard
 
