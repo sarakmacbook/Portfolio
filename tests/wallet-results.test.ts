@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { test } from "node:test";
 import {
   SCAN_SORTS,
+  effectiveWalletCategory,
   groupWalletBalancesByChain,
   marketCapTier,
   searchWalletBalances,
@@ -188,4 +189,65 @@ test("the folder dropdown files the wallet into one existing folder", () => {
 
   const page = readFileSync(resolve(__dirname, "../src/app/page.tsx"), "utf8");
   assert.ok(page.includes("folders={foldersForDialog}"), "the dashboard hands the folders to the dialog");
+});
+
+test("a token's category is the scan's guess unless the user corrected it", () => {
+  const guessed = { id: "usdt-eth", category: "stablecoin" as const };
+  const volatile = { id: "pepe-base", category: "volatile" as const };
+
+  // No correction: the scan's answer is what the token is filed under.
+  assert.equal(effectiveWalletCategory(guessed, {}), "stablecoin");
+  assert.equal(effectiveWalletCategory(volatile, {}), "volatile");
+
+  // A correction on the card wins, whichever way it goes.
+  assert.equal(
+    effectiveWalletCategory(guessed, { "usdt-eth": "volatile" }),
+    "volatile",
+  );
+  assert.equal(
+    effectiveWalletCategory(volatile, { "pepe-base": "stablecoin" }),
+    "stablecoin",
+  );
+
+  // A correction for another token (or left over from an old scan) changes nothing.
+  assert.equal(effectiveWalletCategory(guessed, { "other-id": "volatile" }), "stablecoin");
+});
+
+test("each scanned token gets its own Add button, category dropdown and batch import", () => {
+  const dialog = readFileSync(resolve(__dirname, "../src/components/AddAssetDialog.tsx"), "utf8");
+
+  // Per-asset category selector, on every card, with both tabs offered.
+  assert.ok(dialog.includes("walletCategoryOverrides"), "corrections are kept per token id");
+  assert.ok(dialog.includes("effectiveWalletCategory("), "the correction is applied through one helper");
+  assert.ok(dialog.includes('aria-label={`Category for ${item.symbol}`}'), "each card has a dropdown");
+  assert.ok(dialog.includes('<option value="volatile">Volatile</option>'), "volatile is offered");
+  assert.ok(dialog.includes('<option value="stablecoin">Stablecoin</option>'), "stablecoin is offered");
+
+  // Per-asset Add: one token, straight into its category, and it stays added.
+  assert.ok(dialog.includes("handleImportOneWalletBalance(item)"), "each card has its own Add button");
+  assert.ok(dialog.includes("walletAdded.has(item.id)"), "an added token cannot be added twice");
+  assert.ok(dialog.includes("walletAddingId === item.id"), "the busy card shows it is working");
+
+  // The batch flow is still there, and files each ticked token under its category.
+  assert.ok(dialog.includes("handleImportAllWalletBalances()"), "batch import is kept");
+  assert.ok(dialog.includes("Import selected ("), "and still says how many are ticked");
+  assert.ok(
+    dialog.includes("category: walletCategoryOf(item)"),
+    "batch import sends the corrected category per token",
+  );
+  assert.ok(
+    dialog.includes("!walletAdded.has(item.id)"),
+    "batch import leaves out tokens already added one by one",
+  );
+
+  // A new scan starts clean: no stale corrections or Added marks.
+  assert.ok(dialog.includes("setWalletCategoryOverrides({})"), "a new scan clears corrections");
+  assert.ok(dialog.includes("setWalletAdded(new Set())"), "a new scan clears Added marks");
+
+  const actions = readFileSync(resolve(__dirname, "../src/app/actions.ts"), "utf8");
+  const body = actions.slice(actions.indexOf("export async function importWalletBalances"));
+  assert.ok(
+    body.includes("CRYPTO_CATEGORIES.includes(item.category) ? item.category : \"volatile\""),
+    "the import files each token under the category it was sent with",
+  );
 });
