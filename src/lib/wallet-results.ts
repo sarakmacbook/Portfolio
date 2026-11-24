@@ -68,6 +68,18 @@ export function groupWalletBalancesByChain<T extends SearchableBalance>(
   );
 }
 
+/**
+ * The category a scanned token will be filed into: the one the scan guessed
+ * from its ticker, unless the user corrected it on the card. An override that
+ * has since disappeared (a new scan) simply falls back to the guess.
+ */
+export function effectiveWalletCategory(
+  item: Pick<ScannedWalletBalance, "id" | "category">,
+  overrides: Readonly<Record<string, ScannedWalletBalance["category"]>>,
+): ScannedWalletBalance["category"] {
+  return overrides[item.id] ?? item.category;
+}
+
 /** A value that can be added up: a missing, zero or nonsense price adds nothing. */
 function positiveUsd(value: number | undefined): number {
   return Number.isFinite(value) && (value as number) > 0 ? (value as number) : 0;

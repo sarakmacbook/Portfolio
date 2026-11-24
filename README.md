@@ -156,8 +156,14 @@ lives in **⇅ Arrange layout** mode on the dashboard:
    before you commit to it. The **Sort** box orders them **Real & big first** by
    default (verified tokens, then market cap, then value), or by *Biggest
    holding* / *Biggest market cap*.
-4. Untick anything you do not want, then **Import selected (N)** books the ticked
-   ones as holdings in one go — always **as one folder**, so a wallet reads as a
+4. Every card has its own **Stablecoin / Volatile** dropdown — the tab the scan
+   guessed from the ticker, corrected in place if it guessed wrong — and an
+   **Add** button that books just that token into that tab straight away, so a
+   single holding never needs a whole batch. The card turns green and reads
+   *Added ✓*, and an added token is left out of the batch below so it cannot be
+   imported twice. Untick anything you do not want, then **Import selected (N)**
+   books the ticked ones as holdings in one go, each into its own tab — always
+   **as one folder**, so a wallet reads as a
    group on the dashboard instead of forty loose rows. The **folder dropdown**
    under *Import as one folder* lists the folders you already have: pick one and
    every ticked token is filed into exactly that folder (by id, so a re-scan of

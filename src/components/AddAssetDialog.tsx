@@ -23,6 +23,7 @@ import {
 } from "@/lib/wallet-trust";
 import {
   SCAN_SORTS,
+  effectiveWalletCategory,
   groupWalletBalancesByChain,
   marketCapTier,
   searchWalletBalances,
@@ -252,6 +253,17 @@ function AddAssetForm({
   /** Results grouped by chain, each with its own count and value. */
   const [walletGroupByChain, setWalletGroupByChain] = useState(true);
   const [walletImportMessage, setWalletImportMessage] = useState("");
+  /**
+   * Per-token category corrections. The scan guesses Stablecoin / Volatile from
+   * the ticker; this is where a card's dropdown writes a different answer.
+   */
+  const [walletCategoryOverrides, setWalletCategoryOverrides] = useState<
+    Record<string, CryptoCategory>
+  >({});
+  /** Tokens already imported with their own Add button, so they cannot be imported twice. */
+  const [walletAdded, setWalletAdded] = useState<Set<string>>(new Set());
+  /** Which token the per-card Add button is importing right now. */
+  const [walletAddingId, setWalletAddingId] = useState("");
   const [customBankSelected, setCustomBankSelected] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const isCash = type === "cash";
@@ -327,8 +339,13 @@ function AddAssetForm({
     ],
   );
   const walletVisibleBalances = walletSelection.kept;
-  /** What "Import selected" imports: the kept tokens the user left ticked. */
-  const walletChosen = walletVisibleBalances.filter((item) => !walletDeselected.has(item.id));
+  /**
+   * What "Import selected" imports: the kept tokens the user left ticked, minus
+   * the ones already imported with their own Add button.
+   */
+  const walletChosen = walletVisibleBalances.filter(
+    (item) => !walletDeselected.has(item.id) && !walletAdded.has(item.id),
+  );
   const walletChosenIds = new Set(walletChosen.map((item) => item.id));
   /** What the ticked tokens add up to, so the total is visible before importing. */
   const walletChosenValue = walletValueUsd(walletChosen);
@@ -475,6 +492,11 @@ function AddAssetForm({
     setScanningWallet(true);
     setWalletScanError("");
     setWalletImportMessage("");
+    // A new scan starts with the scan's own category guesses and no tokens
+    // already imported; corrections and Add states belong to the previous scan.
+    setWalletCategoryOverrides({});
+    setWalletAdded(new Set());
+    setWalletAddingId("");
     // Until *this* scan reports back, no CoinMarketCap answer is assumed — the
     // filter stays inert instead of reading "not asked" as "not listed".
     setWalletCmcChecked(false);
@@ -529,6 +551,16 @@ function AddAssetForm({
     }
   }
 
+  /** The category a token is filed into, after any correction on its card. */
+  function walletCategoryOf(item: ScannedWalletBalance): CryptoCategory {
+    return effectiveWalletCategory(item, walletCategoryOverrides);
+  }
+
+  /** Corrects one token's Stablecoin / Volatile category before it is imported. */
+  function setWalletCategory(id: string, category: CryptoCategory) {
+    setWalletCategoryOverrides((current) => ({ ...current, [id]: category }));
+  }
+
   function chooseWalletBalance(item: ScannedWalletBalance, addrOverride?: string) {
     const addr = (addrOverride ?? walletAddress).trim();
     const shortAddr = addr.length > 14 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
@@ -539,7 +571,7 @@ function AddAssetForm({
       setCurrentPrice(String(item.price));
       setCost(String(item.price));
     }
-    setCryptoCategory(item.category);
+    setCryptoCategory(walletCategoryOf(item));
     setNotes(
       `Wallet: ${addr}${shortAddr ? ` (${shortAddr})` : ""} · Chain: ${item.chainLabel}${
         item.contract ? ` · Contract: ${item.contract}` : ""
@@ -591,35 +623,77 @@ function AddAssetForm({
     });
   }
 
+  /** The shared import options: folder, filters and price source. */
+  function walletImportOptions() {
+    return {
+      address: walletCleanAddress,
+      walletLogo,
+      priceSource,
+      // A picked folder is sent by id so the server files into that exact one;
+      // otherwise the name (blank = named after the address) creates or reuses.
+      folderName: walletFileIntoFolder ? walletFolderName.trim() : null,
+      folderId: walletFileIntoFolder && walletPickedFolder ? walletPickedFolder.id : null,
+      // The server applies the same rules, so a stale client cannot slip
+      // dust or spam into the portfolio.
+      minValueUsd: walletDustCut,
+      skipSpam: walletHideSpam,
+      skipImpostor: walletHideImpostor,
+      // The server re-applies the same rule, so a stale client cannot import a
+      // token CoinMarketCap does not know.
+      requireCmc: walletOnlyCmc && walletCmcChecked,
+      minOrganicVolumeUsd: walletRequireMarket ? MIN_ORGANIC_VOLUME_USD : 0,
+      minLiquidityUsd: walletRequireMarket ? MIN_LIQUIDITY_USD : 0,
+      skipUnverified: walletRequireVerified,
+    };
+  }
+
+  /** What an import skipped, as one trailing sentence fragment. */
+  function walletImportSkipNotes(result: {
+    skippedDust?: number;
+    skippedSpam?: number;
+    skippedUnlisted?: number;
+    skippedImpostor?: number;
+    skippedThin?: number;
+    skippedShallow?: number;
+    skippedUnverified?: number;
+  }): string {
+    return [
+      result.skippedDust ? `Skipped ${result.skippedDust} under ${money(walletDustCut)}.` : "",
+      result.skippedSpam ? `Skipped ${result.skippedSpam} that looked like spam.` : "",
+      result.skippedUnlisted
+        ? `Skipped ${result.skippedUnlisted} that CoinMarketCap does not list.`
+        : "",
+      result.skippedImpostor
+        ? `Skipped ${result.skippedImpostor} with the wrong contract address.`
+        : "",
+      result.skippedThin ? `Skipped ${result.skippedThin} with no trading volume.` : "",
+      result.skippedShallow
+        ? `Skipped ${result.skippedShallow} with too little liquidity.`
+        : "",
+      result.skippedUnverified
+        ? `Skipped ${result.skippedUnverified} that could not be verified as a real token.`
+        : "",
+    ]
+      .filter(Boolean)
+      .map((note) => ` ${note}`)
+      .join("");
+  }
+
+  /** Imports every ticked token that has not already been added one by one. */
   async function handleImportAllWalletBalances() {
     if (walletChosen.length === 0) return;
     setImportingWallet(true);
+    setWalletAddingId("");
     setWalletScanError("");
     setWalletImportMessage("");
     try {
       const result = await importWalletBalances({
-        address: walletCleanAddress,
-        walletLogo,
-        priceSource,
-        // A picked folder is sent by id so the server files into that exact one;
-        // otherwise the name (blank = named after the address) creates or reuses.
-        folderName: walletFileIntoFolder ? walletFolderName.trim() : null,
-        folderId: walletFileIntoFolder && walletPickedFolder ? walletPickedFolder.id : null,
-        // The server applies the same rules, so a stale client cannot slip
-        // dust or spam into the portfolio.
-        minValueUsd: walletDustCut,
-        skipSpam: walletHideSpam,
-        skipImpostor: walletHideImpostor,
-        // The server re-applies the same rule, so a stale page cannot import a
-        // token CoinMarketCap does not know.
-        requireCmc: walletOnlyCmc && walletCmcChecked,
-        minOrganicVolumeUsd: walletRequireMarket ? MIN_ORGANIC_VOLUME_USD : 0,
-        minLiquidityUsd: walletRequireMarket ? MIN_LIQUIDITY_USD : 0,
-        skipUnverified: walletRequireVerified,
+        ...walletImportOptions(),
         // `cmcId` rides along so the server can re-apply the CoinMarketCap rule
         // instead of trusting the page's filter state.
         balances: walletChosen.map((item) => ({
           ...item,
+          category: walletCategoryOf(item),
           chain: item.chain,
           ...(item.cmcId !== undefined ? { cmcId: item.cmcId } : {}),
         })),
@@ -629,26 +703,7 @@ function AddAssetForm({
       }
       playMoneyChimeFromGesture();
       const count = `${result.importedCount} holding${result.importedCount === 1 ? "" : "s"}`;
-      const skipped = [
-        result.skippedDust ? `Skipped ${result.skippedDust} under ${money(walletDustCut)}.` : "",
-        result.skippedSpam ? `Skipped ${result.skippedSpam} that looked like spam.` : "",
-        result.skippedUnlisted
-          ? `Skipped ${result.skippedUnlisted} that CoinMarketCap does not list.`
-          : "",
-        result.skippedImpostor
-          ? `Skipped ${result.skippedImpostor} with the wrong contract address.`
-          : "",
-        result.skippedThin ? `Skipped ${result.skippedThin} with no trading volume.` : "",
-        result.skippedShallow
-          ? `Skipped ${result.skippedShallow} with too little liquidity.`
-          : "",
-        result.skippedUnverified
-          ? `Skipped ${result.skippedUnverified} that could not be verified as a real token.`
-          : "",
-      ]
-        .filter(Boolean)
-        .map((note) => ` ${note}`)
-        .join("");
+      const skipped = walletImportSkipNotes(result);
       if (result.folder) {
         setWalletImportMessage(
           `Imported ${count} into the “${result.folder.name}” folder.${skipped}`,
@@ -669,6 +724,52 @@ function AddAssetForm({
       );
     } finally {
       setImportingWallet(false);
+    }
+  }
+
+  /**
+   * Imports one scanned token straight into its category — the per-card Add.
+   * The dialog stays open, so the next token can be added without re-scanning;
+   * the added card is marked so the same token cannot be imported twice.
+   */
+  async function handleImportOneWalletBalance(item: ScannedWalletBalance) {
+    if (walletAdded.has(item.id) || importingWallet) return;
+    setImportingWallet(true);
+    setWalletAddingId(item.id);
+    setWalletScanError("");
+    setWalletImportMessage("");
+    try {
+      const category = walletCategoryOf(item);
+      const result = await importWalletBalances({
+        ...walletImportOptions(),
+        balances: [
+          {
+            ...item,
+            category,
+            chain: item.chain,
+            ...(item.cmcId !== undefined ? { cmcId: item.cmcId } : {}),
+          },
+        ],
+      });
+      if (!result.ok) {
+        throw new Error(result.error || "Could not import that token.");
+      }
+      playMoneyChimeFromGesture();
+      setWalletAdded((current) => new Set(current).add(item.id));
+      const categoryLabel = category === "stablecoin" ? "Stablecoins" : "Volatile crypto";
+      setWalletImportMessage(
+        `Added ${item.symbol} to ${categoryLabel}.${
+          result.folder ? ` Filed into “${result.folder.name}”.` : ""
+        }${walletImportSkipNotes(result)}`,
+      );
+      router.refresh();
+    } catch (error) {
+      setWalletScanError(
+        error instanceof Error ? error.message : "Could not import that token.",
+      );
+    } finally {
+      setImportingWallet(false);
+      setWalletAddingId("");
     }
   }
 
@@ -766,12 +867,16 @@ function AddAssetForm({
     const chosen = walletChosenIds.has(item.id);
     const traded = item.organicVolumeUsd;
     const depth = depthOf(item);
+    const added = walletAdded.has(item.id);
+    const category = walletCategoryOf(item);
     return (
       <div
         className={`rounded-xl border p-2 text-left transition ${
-          chosen
-            ? "border-indigo-500 bg-white ring-2 ring-indigo-100"
-            : "border-slate-200 bg-white hover:border-indigo-300"
+          added
+            ? "border-emerald-200 bg-emerald-50/60 ring-2 ring-emerald-200"
+            : chosen
+              ? "border-indigo-500 bg-white ring-2 ring-indigo-100"
+              : "border-slate-200 bg-white hover:border-indigo-300"
         }`}
       >
         <label className="flex cursor-pointer items-center gap-2">
@@ -890,13 +995,34 @@ function AddAssetForm({
             </span>
           ) : null}
         </span>
-        <button
-          type="button"
-          className="mt-1 text-[11px] font-medium text-indigo-600 hover:underline"
-          onClick={() => chooseWalletBalance(item)}
-        >
-          Fill form
-        </button>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <select
+            value={category}
+            onChange={(event) => setWalletCategory(item.id, event.target.value as CryptoCategory)}
+            aria-label={`Category for ${item.symbol}`}
+            title="Which tab this token is filed into"
+            className="h-6 rounded-md border border-slate-200 bg-white px-1 text-[10px] font-medium text-slate-700 hover:border-indigo-300"
+          >
+            <option value="volatile">Volatile</option>
+            <option value="stablecoin">Stablecoin</option>
+          </select>
+          <button
+            type="button"
+            className="btn-primary h-6 rounded-lg px-2 py-0 text-[10px]"
+            onClick={() => void handleImportOneWalletBalance(item)}
+            disabled={added || importingWallet}
+            aria-label={`Add ${item.symbol} to ${category === "stablecoin" ? "Stablecoins" : "Volatile crypto"}`}
+          >
+            {added ? "Added ✓" : walletAddingId === item.id ? "Adding…" : "Add"}
+          </button>
+          <button
+            type="button"
+            className="text-[11px] font-medium text-indigo-600 hover:underline"
+            onClick={() => chooseWalletBalance(item)}
+          >
+            Fill form
+          </button>
+        </div>
       </div>
     );
   }
@@ -1176,9 +1302,11 @@ function AddAssetForm({
                   Paste your public wallet address (Ethereum / EVM 0x…, Solana, Bitcoin bc1…, or Tron T…).
                   The address is read directly from its chains — public RPCs and explorers, no third-party
                   token index and no API key — and every non-zero balance comes back with its price and
-                  chain.
-                  <strong className="font-medium text-slate-600"> Import all</strong> files the tokens into
-                  one folder for this wallet.
+                  chain. Each token is filed into its <strong className="font-medium text-slate-600">Stablecoins</strong>
+                  or <strong className="font-medium text-slate-600">Volatile crypto</strong> tab: tick the ones you want and
+                  <strong className="font-medium text-slate-600"> Import selected</strong>, or press a card&apos;s
+                  <strong className="font-medium text-slate-600"> Add</strong> to file just that token right away. A card&apos;s
+                  dropdown corrects the tab the scan guessed, and everything lands in one folder for this wallet.
                 </p>
               </div>
               {walletVisibleBalances.length > 0 && (
