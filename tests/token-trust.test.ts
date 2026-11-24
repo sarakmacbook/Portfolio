@@ -327,7 +327,7 @@ test("filterScanBalances separates look-alikes, spam, dead markets and dust", ()
   assert.ok(strict.thin.some((r) => r.id === "a"));
 });
 
-test("the scan route, the action and the dialog all use the trust checks", () => {
+test("the scan route and the action use the trust checks; the dialog no longer offers them", () => {
   const read = (path: string) => readFileSync(resolve(__dirname, "../src", path), "utf8");
 
   const route = read("app/api/wallet/scan/route.ts");
@@ -345,14 +345,21 @@ test("the scan route, the action and the dialog all use the trust checks", () =>
 
   const dialog = read("components/AddAssetDialog.tsx");
   assert.ok(dialog.includes("filterScanBalances("), "the picker uses the shared rules");
-  assert.ok(dialog.includes("Hide look-alike contracts"), "the contract switch exists");
-  assert.ok(dialog.includes("Only tokens with a real market"), "the market switch exists");
+  // The trust-filter row is gone from the panel, so the picker must switch every
+  // one of those rules off rather than leaving their defaults to hide tokens.
+  assert.ok(dialog.includes("hideImpostor: false"), "look-alike contracts are not hidden");
+  assert.ok(dialog.includes("requireMarket: false"), "thin markets are not hidden");
+  assert.ok(dialog.includes("requireVerified: false"), "unverified tokens are not hidden");
+  assert.ok(dialog.includes("minMarketCapUsd: 0"), "small caps are not hidden");
+  assert.ok(!dialog.includes("Hide look-alike contracts"), "the contract switch is gone");
+  assert.ok(!dialog.includes("Only tokens with a real market"), "the market switch is gone");
+  assert.ok(dialog.includes("skipImpostor: false"), "and the import does not re-apply it");
+  assert.ok(dialog.includes("skipUnverified: false"), "or the verification rule");
   assert.ok(dialog.includes("Import selected ("), "the button counts what is ticked");
   assert.ok(dialog.includes("toggleWalletChoice("), "each token can be deselected");
   assert.ok(dialog.includes("Select none"), "and the whole list at once");
   assert.ok(dialog.includes("official ✓"), "a matched contract is shown");
   assert.ok(dialog.includes("Skip tokens under"), "the dollar cut-off is still there");
-  assert.ok(dialog.includes("minLiquidityUsd: walletRequireMarket ? MIN_LIQUIDITY_USD : 0"), "the depth floor reaches the server");
   assert.ok(dialog.includes("liq"), "the card shows the depth");
   assert.ok(dialog.includes("no price yet"), "an unpriced token says so instead of $0.00");
 
@@ -399,7 +406,7 @@ test("a big market cap is evidence a token is real, and a small one can be hidde
   assert.ok(MIN_MARKET_CAP_USD < VERIFIED_MARKET_CAP_USD, "the floor is not the blue-chip line");
 });
 
-test("the picker shows the market cap and offers the big-cap filter", () => {
+test("the picker shows the market cap but no longer offers the big-cap filter", () => {
   const read = (path: string) => readFileSync(resolve(__dirname, "../src", path), "utf8");
 
   const trust = read("lib/wallet-trust.ts");
@@ -407,9 +414,10 @@ test("the picker shows the market cap and offers the big-cap filter", () => {
   assert.ok(trust.includes("cmc?.caps.get("), "CoinMarketCap's cap is read");
 
   const dialog = read("components/AddAssetDialog.tsx");
-  assert.ok(dialog.includes("Only real market cap"), "the switch exists");
-  assert.ok(dialog.includes("minMarketCapUsd: walletMinMarketCap ? MIN_MARKET_CAP_USD : 0"), "it reaches the filter");
-  assert.ok(dialog.includes("shortMarketCap(item.marketCapUsd)"), "a card shows the cap");
+  assert.ok(!dialog.includes("Only real market cap"), "the switch is gone");
+  assert.ok(!dialog.includes("MIN_MARKET_CAP_USD"), "so the floor is not applied from the panel");
+  assert.ok(dialog.includes("minMarketCapUsd: 0"), "and the picker hides no cap");
+  assert.ok(dialog.includes("shortMarketCap(item.marketCapUsd)"), "a card still shows the cap");
   assert.ok(dialog.includes("SCAN_SORTS.map("), "the order can be chosen");
   assert.ok(dialog.includes('useState<ScanSort>("best")'), "real & big first is the default");
 });

@@ -201,38 +201,38 @@ lives in **⇅ Arrange layout** mode on the dashboard:
    position at the top of the portfolio — through `computeTotals`, which means the
    value header, the allocation donut, the daily snapshots and the alert
    thresholds all skip it together.
-7. **Hide look-alike contracts** (on by default) is the official-address check.
-   Anyone can deploy a token called `USDT`; what separates it from the real one is
-   the contract. `src/lib/token-trust.ts` holds the issuers' own addresses for the
-   well-known tokens on the chains this app prices (USDT, USDC, DAI, WETH, WBTC,
-   cbBTC, LINK, UNI, AAVE, ARB, OP, AERO, BNB, AVAX, LayerZero's ZRO — which
-   launches at one identical address on all seven of them — and the bridged
-   `USDC.e` / `USDBTC` variants), keyed by chain. A scan balance is then:
-   **official** (the address matches, and the card shows *official ✓*),
-   **different** (right symbol, wrong contract — hidden and counted as a
-   look-alike), or **unknown** (not in the table, which is most real tokens, and
-   is never a reason to hide anything). The same check runs again server-side in
-   `importWalletBalances`, so a stale page cannot import a fake `USDT`.
-8. **Only tokens with a real market** (on by default) answers "is this actually a
-   token anyone trades?". For each contract the scan asks DexScreener for its
-   pairs and works out two things.
+7. **Look-alike contracts are still identified.** Anyone can deploy a token
+   called `USDT`; what separates it from the real one is the contract.
+   `src/lib/token-trust.ts` holds the issuers' own addresses for the well-known
+   tokens on the chains this app prices (USDT, USDC, DAI, WETH, WBTC, cbBTC,
+   LINK, UNI, AAVE, ARB, OP, AERO, BNB, AVAX, LayerZero's ZRO — which launches at
+   one identical address on all seven of them — and the bridged `USDC.e` /
+   `USDBTC` variants), keyed by chain. A scan balance is then **official** (the
+   address matches, and the card shows *official ✓*), **different** (right
+   symbol, wrong contract) or **unknown** (not in the table, which is most real
+   tokens). This is a label on the card, not a filter: the panel no longer hides
+   look-alikes, so one is shown like any other token and importing it is your
+   call.
+8. **Market depth is still measured.** For each contract the scan asks
+   DexScreener for its pairs and works out two things.
 
    *Volume* (`MIN_ORGANIC_VOLUME_USD`, $100/day): pools under $500 of liquidity
    are ignored — anyone can create one to fake activity — and volume above 200× a
    pool's own liquidity is dropped as wash trading, so what remains is organic.
 
-   *Depth* (`src/lib/organic-volume.ts`): `liquidityUsd` is the pooled liquidity of
-   the pools that count, and `deepestPoolUsd` is the deepest single one. A token
-   is **real at $2,000** pooled (`MIN_LIQUIDITY_USD`) and **deep at $25,000** with
-   one pool holding at least $5,000 (`DEEP_LIQUIDITY_USD` / `MIN_DEEPEST_POOL_USD`)
-   — twenty $4,000 pools do not add up to depth, because liquidity is the part of a
-   fake token that costs real money to manufacture. `liquidityDepth()` returns
-   `deep` / `shallow` / `unknown`, and the card shows the number: `$41.2k liq ✓`,
-   grey for a real-but-small market, amber when the pools are too thin to trust.
+   *Depth* (`src/lib/organic-volume.ts`): `liquidityUsd` is the pooled liquidity
+   of the pools that count, and `deepestPoolUsd` is the deepest single one. A
+   token is **real at $2,000** pooled (`MIN_LIQUIDITY_USD`) and **deep at $25,000**
+   with one pool holding at least $5,000 (`DEEP_LIQUIDITY_USD` /
+   `MIN_DEEPEST_POOL_USD`) — twenty $4,000 pools do not add up to depth, because
+   liquidity is the part of a fake token that costs real money to manufacture.
+   `liquidityDepth()` returns `deep` / `shallow` / `unknown`, and the card shows
+   the number: `$41.2k liq ✓`, grey for a real-but-small market, amber when the
+   pools are too thin to trust.
 
-   Both floors hide a token, both are counted in the *Show them* line, and both are
-   re-applied server-side. No answer from DexScreener means *unknown*, which is
-   kept — a rate limit must never hide a real holding.
+   The numbers are evidence you can read on the card, not a filter: nothing is
+   hidden for having no volume or shallow pools, and no answer from DexScreener
+   means *unknown*, which is shown like any other token.
 
 ### Matching a scanned contract to CoinMarketCap
 
@@ -262,15 +262,11 @@ otherwise — and it does two jobs:
   more counts as `verified` on its own, because a ticker is free to copy and a
   cap is not. Deeper than liquidity can be rented for a day; a capitalisation
   cannot.
-- **It can be a filter.** *Only real market cap ($1M+)* is on by default:
-  `minMarketCapUsd` hides a token whose **known** cap is under
-  `MIN_MARKET_CAP_USD` ($1M), counts it (`· N under $1.0M market cap hidden`) and
-  offers *Show them*. A token whose cap could not be looked up is always kept —
-  not knowing is not evidence of being small, and a rate limit must never empty
-  the picker.
 
 The cards show the number as a chip (`$60.0B cap`, green for a $1B+ or $50M+ cap,
 grey for $1M+, amber below), so the size of a coin is visible next to its value.
+It is only ever shown: the panel has no market-cap filter, so a small cap is a
+card you can read, not a token that disappears.
 
 Precedence is deliberate: the local table's **different** always wins, because
 that is the case where the app knows the right address (a token called `USDT` at
@@ -280,17 +276,14 @@ verification reason (`verifiedBy: ["CoinMarketCap"]`). Everything else stays
 **unknown**, which never hides a token. No key → nothing is asked and the scan
 behaves exactly as before.
 
-**Only tokens CoinMarketCap lists** is the strictest switch in the picker, on by
-default: a token whose contract CMC does not know is hidden (and counted, with
-*Show them* → untick to bring it back), and `importWalletBalances` re-applies the
-same rule server-side so a stale page cannot book it. Two deliberate escapes: a
-native coin has no contract to look up and is always kept, and the filter only
-turns on when the lookup actually answered (`cmcChecked` on the scan response) —
-no key or a rate limit leaves the picker exactly as it was, never empty.
+There is no "only tokens CoinMarketCap lists" switch in the panel: a token CMC
+does not know is shown like any other, with the badge above saying what was
+found. `importWalletBalances` still accepts `requireCmc` for a caller that wants
+the strict rule, but the panel never sends it — what the list shows is what
+imports.
 
-Each hidden bucket (look-alike, spam, no volume, dust, not on CMC) is counted in
-the line under the scan with its own *Show them* link, so a filter never silently
-swallows a token.
+Each hidden bucket (spam, dust) is counted in the line under the scan with its
+own *Show them* link, so a filter never silently swallows a token.
 
 The same switch sits on the holdings table (*Hide spam*, on by default): rows
 that look like spam are skipped with a count, a *Show them* link and a **Remove
@@ -344,10 +337,10 @@ table, a batched **CoinMarketCap** contract lookup (50 addresses per call) and
 one batched DexScreener call (30 contracts each). Failures leave a token
 *unknown*, never hidden.
 
-**Filters in the dialog** — look-alike contracts, spam, no real market, ties to
-CoinMarketCap (only tokens it lists for that contract, skipped entirely when it
-did not answer) and dust are each counted with a *Show them*, and only ticked
-tokens are imported.
+**Filters in the dialog** — spam and dust are each counted with a *Show them*,
+and only ticked tokens are imported. The trust checks above feed the badges on
+the card (official ✓, CMC name, market cap, liquidity, volume); they do not hide
+anything, so the list is always the whole scan.
 
 A scan covers every chain (API callers can still narrow it with `?chain=` on
 `/api/wallet/scan`; the filter understands both spellings — `ethereum` and `eth`
@@ -370,32 +363,29 @@ Notes:
   picker. A token an explorer marks as verified but has no price for is still
   listed.
 
-### Junk tokens: the strict filter
+### Junk tokens: checked, not hidden
 
 A wallet that has ever been public attracts airdrops, and a scan of it can return
-dozens of tokens nobody asked for. The picker therefore asks one more question
-than *"is it there?"* — **is it real?** — and defaults to showing only the tokens
-that pass.
+dozens of tokens nobody asked for. The scan still judges every balance, but the
+panel no longer filters on that judgement — the list is the whole scan, and each
+card carries the evidence so you can decide.
 
 Each balance leaves the scan with a verdict (`verificationOf`, in
 `src/lib/wallet-trust.ts`):
 
-| Verdict | Meaning | Shown by default |
+| Verdict | Meaning | On the card |
 | --- | --- | --- |
-| `verified` | the official-contract table matches, **or** an explorer verified it (a Blockscout/Routescan `verified` reputation), **or** it trades in a deep market | yes |
-| `unverified` | positive evidence of junk: a spam verdict, or market numbers that cannot back the price — no pairs on a chain DexScreener indexes, or less than $25k pooled with $100 traded | no — counted, one click from *Show them* |
-| `unknown` | nothing could be checked (no explorer, a chain DexScreener does not index, a rate limit) | yes — a missing answer is never evidence |
+| `verified` | the official-contract table matches, **or** an explorer verified it (a Blockscout/Routescan `verified` reputation), **or** it trades in a deep market | the normal card |
+| `unverified` | positive evidence of junk: a spam verdict, or market numbers that cannot back the price — no pairs on a chain DexScreener indexes, or less than $25k pooled with $100 traded | the normal card — the thin liquidity and low volume chips are what give it away |
+| `unknown` | nothing could be checked (no explorer, a chain DexScreener does not index, a rate limit) | the normal card — a missing answer is never evidence |
 
-The switch in the dialog is **Only real tokens**, on by default, next to the
-existing *Hide spam*, *Hide look-alike contracts*, *Only tokens with a real
-market* and dust cut-off. The summary says how many were hidden and why, and
-`Show them` puts them back — nothing is ever deleted. `Import selected` re-checks
-the same rules server-side (`skipUnverified` in `importWalletBalances`), so a
-stale page cannot book junk either.
+Nothing is hidden by verdict, contract, market depth or market cap any more. The
+two switches the panel keeps are the ones with a clear on/off meaning: **Skip
+tokens under $** (dust) and **Hide spam tokens**, each counted in the line under
+the scan with a *Show them* link.
 
 The explorer's own `verified` reputation travels with the balance, so a token an
-explorer vouches for is not hidden just because DexScreener has not indexed its
-pool yet.
+explorer vouches for is never mistaken for one nobody checked.
 
 ### CoinMarketCap API key — optional post-scan check
 

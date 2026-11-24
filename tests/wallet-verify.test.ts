@@ -169,24 +169,16 @@ test("the explorer's verification verdict is read", () => {
   assert.equal(blockscout[0].verified, true);
 });
 
-test("the dialog, the import action and the scan all use the new rule", () => {
+test("the import action and the scan keep the rule, but the dialog no longer applies it", () => {
   const read = (path: string) => readFileSync(resolve(__dirname, "../src", path), "utf8");
 
   const dialog = read("components/AddAssetDialog.tsx");
-  assert.ok(dialog.includes("requireVerified: walletRequireVerified"), "the picker applies it");
-  assert.ok(dialog.includes("Only real tokens"), "the switch is visible");
-  assert.ok(dialog.includes("walletSelection.counts.unverified"), "and counted");
-  assert.ok(dialog.includes("setWalletRequireVerified(false)"), "with a way back");
-  assert.ok(dialog.includes("skipUnverified: walletRequireVerified"), "the import re-checks it");
-  assert.equal(
-    /useState\(true\);[^\n]*\n[^\n]*const \[walletRequireVerified, setWalletRequireVerified\] = useState\(false\)/.test(dialog),
-    false,
-    "verification is on by default",
-  );
-  assert.ok(
-    dialog.includes("const [walletRequireVerified, setWalletRequireVerified] = useState(true)"),
-    "verification is on by default",
-  );
+  // The trust-filter row is gone: the panel neither hides unverified tokens nor
+  // lets the server drop one behind the user's back.
+  assert.ok(dialog.includes("requireVerified: false"), "the picker hides nothing by verdict");
+  assert.ok(!dialog.includes("Only real tokens"), "the switch is gone");
+  assert.ok(!dialog.includes("walletSelection.counts.unverified"), "so nothing is counted");
+  assert.ok(dialog.includes("skipUnverified: false"), "and the import does not re-check it");
 
   const actions = read("app/actions.ts");
   assert.ok(actions.includes("skipUnverified"), "the server accepts the switch");
