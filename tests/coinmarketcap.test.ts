@@ -386,20 +386,17 @@ test("the trust pass reports whether CoinMarketCap actually answered", async () 
   assert.equal(limited[0].ok, false);
 });
 
-test("only tokens CoinMarketCap lists, applied by the page and re-applied by the server", () => {
+test("the server still accepts the CoinMarketCap rule, but the panel no longer offers it", () => {
   const route = read("app/api/wallet/scan/route.ts");
   assert.ok(route.includes("cmcChecked: cmcLookup.ok"), "the route says whether CMC answered");
   assert.ok(route.includes("cmcListed"), "and how many contracts it knew");
 
   const dialog = read("components/AddAssetDialog.tsx");
-  assert.ok(dialog.includes("Only tokens on CoinMarketCap"), "the switch exists");
-  assert.ok(
-    dialog.includes("onlyCmc: walletOnlyCmc && walletCmcChecked"),
-    "the filter is on by default but only once CMC has answered",
-  );
-  assert.ok(dialog.includes("disabled={!walletCmcChecked}"), "and it says so when it is off");
-  assert.ok(dialog.includes("setWalletOnlyCmc(false)"), "Show them turns it off");
-  assert.ok(dialog.includes("requireCmc: walletOnlyCmc && walletCmcChecked"), "the server is asked to re-apply it");
+  // The filter row is gone from the panel: no switch, and the import never asks
+  // the server for the rule, so what the list shows is what imports.
+  assert.ok(!dialog.includes("Only tokens on CoinMarketCap"), "the switch is gone");
+  assert.ok(dialog.includes("onlyCmc: false"), "and the picker hides nothing by listing");
+  assert.ok(!dialog.includes("requireCmc:"), "the server is never asked to re-apply it");
 
   const actions = read("app/actions.ts");
   const body = actions.slice(actions.indexOf("export async function importWalletBalances"));

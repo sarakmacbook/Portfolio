@@ -13,14 +13,8 @@ import type { CryptoCategory } from "@/db/schema";
 import { TYPE_META, money, qty } from "@/lib/format";
 import { playMoneyChimeFromGesture } from "@/lib/sounds";
 import { DEFAULT_DUST_THRESHOLD_USD, normaliseDustThreshold } from "@/lib/wallet-dust";
-import { MIN_LIQUIDITY_USD, MIN_ORGANIC_VOLUME_USD, shortUsd } from "@/lib/organic-volume";
-import {
-  MIN_MARKET_CAP_USD,
-  VERIFIED_LIQUIDITY_USD,
-  VERIFIED_MARKET_CAP_USD,
-  depthOf,
-  filterScanBalances,
-} from "@/lib/wallet-trust";
+import { MIN_ORGANIC_VOLUME_USD, shortUsd } from "@/lib/organic-volume";
+import { depthOf, filterScanBalances } from "@/lib/wallet-trust";
 import {
   SCAN_SORTS,
   effectiveWalletCategory,
@@ -215,8 +209,6 @@ function AddAssetForm({
   const [walletFolderName, setWalletFolderName] = useState("");
   /** Order of the results: real & big first by default. */
   const [walletSort, setWalletSort] = useState<ScanSort>("best");
-  /** Hide tokens whose known market cap is under the floor. */
-  const [walletMinMarketCap, setWalletMinMarketCap] = useState(true);
   /** Hide scanned balances worth less than `walletDustThreshold` (dust). */
   const [walletHideDust, setWalletHideDust] = useState(true);
   const [walletDustThreshold, setWalletDustThreshold] = useState(
@@ -224,25 +216,6 @@ function AddAssetForm({
   );
   /** Hide tokens that look like airdropped spam (ads, fake tickers). */
   const [walletHideSpam, setWalletHideSpam] = useState(true);
-  /**
-   * Show only tokens CoinMarketCap lists for their contract. On by default, but
-   * only ever active when the lookup actually ran — a missing key leaves the
-   * picker exactly as it was instead of emptying it.
-   */
-  const [walletOnlyCmc, setWalletOnlyCmc] = useState(true);
-  /** Whether CoinMarketCap answered for the last scan (from the API). */
-  const [walletCmcChecked, setWalletCmcChecked] = useState(false);
-  /** Hide tokens whose contract is not the official one for their symbol. */
-  const [walletHideImpostor, setWalletHideImpostor] = useState(true);
-  /** Hide tokens nobody trades (unknown volume is always kept). */
-  const [walletRequireMarket, setWalletRequireMarket] = useState(true);
-  /**
-   * The strict default: only tokens the scan could *verify* — an official
-   * contract, an explorer's verdict, or a market deep enough to back the price.
-   * Everything else is counted and one click away, so junk airdrops do not fill
-   * the picker while a real holding is never lost.
-   */
-  const [walletRequireVerified, setWalletRequireVerified] = useState(true);
   /**
    * Tokens the user unticked. Kept as a set of *exclusions* rather than a set of
    * picks, so changing a filter never silently re-selects something they dropped.
@@ -306,37 +279,23 @@ function AddAssetForm({
 
   const walletDustCut = walletHideDust ? normaliseDustThreshold(walletDustThreshold) : 0;
   /**
-   * What is worth importing, in order of how sure the app is: the right
-   * contract, not airdrop bait, a real market, and worth more than the cut-off.
-   * Every bucket is counted and can be shown again — this is a filter, not a
-   * delete.
+   * What is worth importing: the two switches the panel still shows, spam and
+   * dust. Every trust filter (look-alike contracts, market depth, verification,
+   * CoinMarketCap, market cap) is off, so the list is the whole scan and nothing
+   * is hidden without a way to see it.
    */
   const walletSelection = useMemo(
     () =>
       filterScanBalances(walletBalances, {
         hideSpam: walletHideSpam,
         dustCut: walletDustCut,
-        hideImpostor: walletHideImpostor,
-        requireMarket: walletRequireMarket,
-        requireVerified: walletRequireVerified,
-        // Only when CoinMarketCap actually answered: otherwise every token would
-        // look "unlisted" and the picker would come back empty.
-        onlyCmc: walletOnlyCmc && walletCmcChecked,
-        // Market cap: only a *known* small cap is hidden, so a lookup that did
-        // not answer can never shrink the list.
-        minMarketCapUsd: walletMinMarketCap ? MIN_MARKET_CAP_USD : 0,
+        hideImpostor: false,
+        requireMarket: false,
+        requireVerified: false,
+        onlyCmc: false,
+        minMarketCapUsd: 0,
       }),
-    [
-      walletBalances,
-      walletHideSpam,
-      walletDustCut,
-      walletHideImpostor,
-      walletRequireMarket,
-      walletRequireVerified,
-      walletOnlyCmc,
-      walletCmcChecked,
-      walletMinMarketCap,
-    ],
+    [walletBalances, walletHideSpam, walletDustCut],
   );
   const walletVisibleBalances = walletSelection.kept;
   /**
@@ -497,9 +456,6 @@ function AddAssetForm({
     setWalletCategoryOverrides({});
     setWalletAdded(new Set());
     setWalletAddingId("");
-    // Until *this* scan reports back, no CoinMarketCap answer is assumed — the
-    // filter stays inert instead of reading "not asked" as "not listed".
-    setWalletCmcChecked(false);
     setWalletScanDone(false);
     try {
       const params = new URLSearchParams({
@@ -512,7 +468,7 @@ function AddAssetForm({
         balances?: ScannedWalletBalance[];
         source?: "onchain";
         sourceNote?: string;
-        /** CoinMarketCap answered for this scan (so the CMC filter is meaningful). */
+        /** CoinMarketCap answered for this scan (the trust pass, not a filter). */
         cmcChecked?: boolean;
         cmcListed?: number;
       };
@@ -526,7 +482,6 @@ function AddAssetForm({
       setWalletScanDone(true);
       // Remembered on this device, so the next scan is one click.
       rememberScannedAddress(trimmed);
-      setWalletCmcChecked(data.cmcChecked === true);
       // Where the numbers came from, said plainly. The read is direct, so this
       // is only ever a note about a chain or explorer that could not answer.
       setWalletScanNote(
@@ -637,13 +592,11 @@ function AddAssetForm({
       // dust or spam into the portfolio.
       minValueUsd: walletDustCut,
       skipSpam: walletHideSpam,
-      skipImpostor: walletHideImpostor,
-      // The server re-applies the same rule, so a stale client cannot import a
-      // token CoinMarketCap does not know.
-      requireCmc: walletOnlyCmc && walletCmcChecked,
-      minOrganicVolumeUsd: walletRequireMarket ? MIN_ORGANIC_VOLUME_USD : 0,
-      minLiquidityUsd: walletRequireMarket ? MIN_LIQUIDITY_USD : 0,
-      skipUnverified: walletRequireVerified,
+      // The trust-filter row is gone, so the import does not re-apply its rules
+      // behind the user's back: a token in the list is a token that imports.
+      // Both default to *on* when omitted, so they are switched off explicitly.
+      skipImpostor: false,
+      skipUnverified: false,
     };
   }
 
@@ -651,28 +604,10 @@ function AddAssetForm({
   function walletImportSkipNotes(result: {
     skippedDust?: number;
     skippedSpam?: number;
-    skippedUnlisted?: number;
-    skippedImpostor?: number;
-    skippedThin?: number;
-    skippedShallow?: number;
-    skippedUnverified?: number;
   }): string {
     return [
       result.skippedDust ? `Skipped ${result.skippedDust} under ${money(walletDustCut)}.` : "",
       result.skippedSpam ? `Skipped ${result.skippedSpam} that looked like spam.` : "",
-      result.skippedUnlisted
-        ? `Skipped ${result.skippedUnlisted} that CoinMarketCap does not list.`
-        : "",
-      result.skippedImpostor
-        ? `Skipped ${result.skippedImpostor} with the wrong contract address.`
-        : "",
-      result.skippedThin ? `Skipped ${result.skippedThin} with no trading volume.` : "",
-      result.skippedShallow
-        ? `Skipped ${result.skippedShallow} with too little liquidity.`
-        : "",
-      result.skippedUnverified
-        ? `Skipped ${result.skippedUnverified} that could not be verified as a real token.`
-        : "",
     ]
       .filter(Boolean)
       .map((note) => ` ${note}`)
@@ -1538,78 +1473,6 @@ function AddAssetForm({
               </span>
             </label>
 
-            <div className="mt-2 flex flex-col gap-x-4 gap-y-1 rounded-xl border border-indigo-100 bg-white/70 p-2 text-xs font-medium text-slate-600 sm:flex-row sm:items-center">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-indigo-600"
-                  checked={walletHideImpostor}
-                  onChange={(event) => setWalletHideImpostor(event.target.checked)}
-                />
-                Hide look-alike contracts
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-indigo-600"
-                  checked={walletRequireMarket}
-                  onChange={(event) => setWalletRequireMarket(event.target.checked)}
-                />
-                Only tokens with a real market
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-indigo-600"
-                  checked={walletRequireVerified}
-                  onChange={(event) => setWalletRequireVerified(event.target.checked)}
-                />
-                Only real tokens
-              </label>
-              <label
-                className="flex items-center gap-2"
-                title={
-                  walletCmcChecked
-                    ? "Show only tokens CoinMarketCap lists for that exact contract address"
-                    : "CoinMarketCap answered for none of these contracts, so this filter is off"
-                }
-              >
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-indigo-600 disabled:opacity-50"
-                  checked={walletOnlyCmc && walletCmcChecked}
-                  disabled={!walletCmcChecked}
-                  onChange={(event) => setWalletOnlyCmc(event.target.checked)}
-                />
-                Only tokens on CoinMarketCap
-              </label>
-              <label
-                className="flex items-center gap-2"
-                title={`A market cap of at least $${(MIN_MARKET_CAP_USD / 1_000_000).toFixed(0)}M. A ticker can be faked; a cap cannot. A token whose cap could not be looked up is always kept.`}
-              >
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 accent-indigo-600"
-                  checked={walletMinMarketCap}
-                  onChange={(event) => setWalletMinMarketCap(event.target.checked)}
-                />
-                Only real market cap (${(MIN_MARKET_CAP_USD / 1_000_000).toFixed(0)}M+)
-              </label>
-              <span className="font-normal text-[11px] text-slate-400">
-                Official contract, an explorer&apos;s verification, or{" "}
-                {shortUsd(VERIFIED_LIQUIDITY_USD)}+ of pooled liquidity with{" "}
-                {shortUsd(MIN_ORGANIC_VOLUME_USD)}+ traded in 24h. Unchecked shows every token the
-                scan found, junk included.
-              </span>
-              {!walletCmcChecked && (
-                <span className="font-normal text-[11px] text-slate-400">
-                  No CoinMarketCap answer for this scan, so the list is not filtered by it. Add a key
-                  in the CoinMarketCap API key panel below (or set{" "}
-                  <code className="text-[11px]">CMC_PRO_API_KEY</code>) to turn that filter on.
-                </span>
-              )}
-            </div>
-
             <details className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <summary className="cursor-pointer font-medium text-slate-600">
                 How the scan finds tokens
@@ -1636,7 +1499,7 @@ function AddAssetForm({
                 <li>
                   <strong className="font-medium text-slate-600">Pricing</strong> — each balance is
                   quoted from the market APIs, then from the built-in fallback table, instead of being
-                  shown (or filtered) as $0.
+                  shown as $0.
                 </li>
                 <li>
                   <strong className="font-medium text-slate-600">Then the checks</strong> — official
@@ -1669,23 +1532,8 @@ function AddAssetForm({
                 <p className="text-xs text-slate-500">
                   Found {walletBalances.length} balance{walletBalances.length === 1 ? "" : "s"}
                   {walletScanChainCount > 1 ? ` on ${walletScanChainCount} chains` : ""}
-                  {walletSelection.counts.impostor > 0
-                    ? ` · ${walletSelection.counts.impostor} look-alike hidden`
-                    : ""}
                   {walletSelection.counts.spam > 0
                     ? ` · ${walletSelection.counts.spam} spam-looking hidden`
-                    : ""}
-                  {walletSelection.counts.unverified > 0
-                    ? ` · ${walletSelection.counts.unverified} unverified hidden`
-                    : ""}
-                  {walletSelection.counts.unlisted > 0
-                    ? ` · ${walletSelection.counts.unlisted} not on CoinMarketCap hidden`
-                    : ""}
-                  {walletSelection.counts.smallcap > 0
-                    ? ` · ${walletSelection.counts.smallcap} under ${shortUsd(MIN_MARKET_CAP_USD)} market cap hidden`
-                    : ""}
-                  {walletSelection.counts.thin > 0
-                    ? ` · ${walletSelection.counts.thin} with no real market hidden`
                     : ""}
                   {walletSelection.counts.dust > 0
                     ? ` · ${walletSelection.counts.dust} under ${money(walletDustCut)} hidden (${money(
@@ -1696,55 +1544,6 @@ function AddAssetForm({
                   <strong>Fill form</strong> on a token to edit it by hand.
                 </p>
 
-                {walletSelection.counts.impostor > 0 ? (
-                  <p className="text-[11px] text-slate-500">
-                    {walletSelection.counts.impostor} token
-                    {walletSelection.counts.impostor === 1 ? " uses" : "s use"} the right symbol on the
-                    wrong contract — the usual fake-USDT trick.{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-indigo-600 hover:underline"
-                      onClick={() => setWalletHideImpostor(false)}
-                    >
-                      Show them
-                    </button>
-                  </p>
-                ) : null}
-
-                {walletSelection.counts.unverified > 0 ? (
-                  <p className="text-[11px] text-slate-500">
-                    {walletSelection.counts.unverified} token
-                    {walletSelection.counts.unverified === 1 ? " could" : "s could"} not be verified
-                    as real — no official contract, no explorer check, and no market deep enough
-                    ({shortUsd(VERIFIED_LIQUIDITY_USD)} pooled) to back the price. Airdrop junk
-                    almost always lands here.{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-indigo-600 hover:underline"
-                      onClick={() => setWalletRequireVerified(false)}
-                    >
-                      Show them
-                    </button>
-                  </p>
-                ) : null}
-
-                {walletSelection.counts.thin > 0 ? (
-                  <p className="text-[11px] text-slate-500">
-                    {walletSelection.counts.thin} token
-                    {walletSelection.counts.thin === 1 ? " has" : "s have"} no real market — under{" "}
-                    {shortUsd(MIN_LIQUIDITY_USD)} of pooled liquidity or under{" "}
-                    {shortUsd(MIN_ORGANIC_VOLUME_USD)} traded in 24h — so the price shown is not backed
-                    by anything.{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-indigo-600 hover:underline"
-                      onClick={() => setWalletRequireMarket(false)}
-                    >
-                      Show them
-                    </button>
-                  </p>
-                ) : null}
-
                 {walletSelection.counts.spam > 0 ? (
                   <p className="text-[11px] text-slate-500">
                     {walletSelection.counts.spam} token
@@ -1753,38 +1552,6 @@ function AddAssetForm({
                       type="button"
                       className="font-medium text-indigo-600 hover:underline"
                       onClick={() => setWalletHideSpam(false)}
-                    >
-                      Show them
-                    </button>
-                  </p>
-                ) : null}
-
-                {walletSelection.counts.unlisted > 0 ? (
-                  <p className="text-[11px] text-slate-500">
-                    {walletSelection.counts.unlisted} token
-                    {walletSelection.counts.unlisted === 1 ? " is" : "s are"} not listed on
-                    CoinMarketCap for that contract address.{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-indigo-600 hover:underline"
-                      onClick={() => setWalletOnlyCmc(false)}
-                    >
-                      Show them
-                    </button>
-                  </p>
-                ) : null}
-
-                {walletSelection.counts.smallcap > 0 ? (
-                  <p className="text-[11px] text-slate-500">
-                    {walletSelection.counts.smallcap} token
-                    {walletSelection.counts.smallcap === 1 ? " has" : "s have"} a known market cap
-                    under {shortUsd(MIN_MARKET_CAP_USD)} — small enough that a fake could hold one,
-                    though some are honest micro-caps. A token whose cap could not be looked up is
-                    never counted here.{" "}
-                    <button
-                      type="button"
-                      className="font-medium text-indigo-600 hover:underline"
-                      onClick={() => setWalletMinMarketCap(false)}
                     >
                       Show them
                     </button>
@@ -1808,8 +1575,8 @@ function AddAssetForm({
 
                 {walletVisibleBalances.length === 0 ? (
                   <p className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
-                    Nothing in this wallet passed the filters. Untick the boxes above — including the
-                    CoinMarketCap one — to see everything the scan found.
+                    Nothing in this wallet passed the filters. Untick the boxes above to see
+                    everything the scan found.
                   </p>
                 ) : (
                   <>
