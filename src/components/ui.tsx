@@ -43,7 +43,7 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="grid h-11 w-11 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 sm:h-8 sm:w-8"
             aria-label="Close"
           >
             ✕
