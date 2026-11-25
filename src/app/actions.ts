@@ -481,6 +481,35 @@ export async function deleteAsset(fd: FormData) {
   redirect("/");
 }
 
+/** Remove explicitly selected holdings, preserving folders and their remaining children. */
+export async function removeSelectedHoldings(ids: number[]): Promise<{ removed: number; error?: string }> {
+  try {
+    if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+      throw new Error("Choose valid assets to remove.");
+    }
+    await ensureSchema();
+    const selected = await db.select({ id: assets.id }).from(assets).where(inArray(assets.id, [...new Set(ids)]));
+    if (selected.length === 0) return { removed: 0 };
+    const selectedIds = new Set(selected.map((asset) => asset.id));
+    const folders = await loadHoldingsFolders();
+    const promoted = folders.map((folder) => {
+      if (!folder.parentAssetId || !selectedIds.has(folder.parentAssetId)) return folder;
+      const { parentAssetId: _parentAssetId, ...rootFolder } = folder;
+      return rootFolder;
+    });
+    const assignments = await loadHoldingFolderAssignments(folders);
+    for (const id of selectedIds) delete assignments[id];
+    if (promoted.some((folder, index) => folder !== folders[index])) await saveHoldingsFolders(promoted);
+    await saveHoldingFolderAssignments(assignments, promoted);
+    await db.delete(assets).where(inArray(assets.id, [...selectedIds]));
+    await recordSnapshot();
+    refresh();
+    return { removed: selected.length };
+  } catch (error) {
+    return { removed: 0, error: error instanceof Error ? error.message : "Could not remove assets." };
+  }
+}
+
 /**
  * Deletes every holding that looks like airdropped spam.
  *

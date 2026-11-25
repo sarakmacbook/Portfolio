@@ -54,7 +54,7 @@ import { moveKeyTo } from "@/lib/order-list";
 import { DEFAULT_DUST_THRESHOLD_USD, normaliseDustThreshold, splitDust } from "@/lib/wallet-dust";
 import { spamReasonOf, splitSpam } from "@/lib/wallet-spam";
 import { PROVIDER_LABELS, type PriceProvider } from "@/lib/market-prices";
-import { removeSpamHoldings, saveHoldingFolderAssignment, saveHoldingsSectionsOrder } from "@/app/actions";
+import { removeSelectedHoldings, removeSpamHoldings, saveHoldingFolderAssignment, saveHoldingsSectionsOrder } from "@/app/actions";
 import CryptoLogo from "./CryptoLogo";
 import ExchangeIcon, { EXCHANGE_BRAND_COLORS, FolderIcon } from "./ExchangeIcon";
 import GripIcon from "./GripIcon";
@@ -196,6 +196,21 @@ export default function HoldingsTable({
   const [sectionDropAt, setSectionDropAt] = useState<number | null>(null);
 
   const [query, setQuery] = useState("");
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+  const [selectionMessage, setSelectionMessage] = useState("");
+  const [removingSelected, startRemovingSelected] = useTransition();
+  const selectionActive = selecting && !arranging;
+  function toggleSelection(id: number) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function selectionCheckbox(row: HoldingRow) {
+    return <input type="checkbox" className="h-4 w-4 shrink-0 accent-indigo-600" aria-label={`Select ${row.name}`} checked={selectedIds.has(row.id)} disabled={removingSelected} onChange={() => toggleSelection(row.id)} />;
+  }
   // A saved arrangement is what the table shows until a column is sorted on.
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>(() =>
     assetOrder.length > 0 || sectionsOrder.some((key) => assetIdFromSectionKey(key) !== null)
@@ -734,7 +749,7 @@ export default function HoldingsTable({
    * and Folder columns while arranging — the per-row folder dropdown is part
    * of the layout editor, not of the everyday table.
    */
-  const columnCount = 7 + (arranging ? 2 : 0);
+  const columnCount = 7 + (arranging ? 2 : 0) + (selectionActive ? 1 : 0);
   const folderIds = useMemo(() => folders.map((folder) => folder.id), [folders]);
 
   function folderLabel(folder: HoldingFolder) {
@@ -1069,6 +1084,7 @@ export default function HoldingsTable({
                     isDropTarget ? "bg-indigo-50/70 ring-2 ring-inset ring-indigo-400" : ""
                   }`}
                 >
+                  {selectionActive && <td className="px-4 py-3">{selectionCheckbox(r)}</td>}
                   {arranging && (
                     <td className="px-2 py-3 align-middle">
                       <span className="rounded-lg border border-dashed border-indigo-300 bg-indigo-50/80 px-1.5 py-1">
@@ -1185,6 +1201,7 @@ export default function HoldingsTable({
                   {holdingArrangeControls(r.id, r.name, "ml-auto")}
                 </div>
               )}
+              {selectionActive && <div className="mb-2 flex items-center gap-2">{selectionCheckbox(r)}<span className="text-xs text-slate-500">Select {r.name}</span></div>}
               <Link href={`/assets/${r.id}`} className="flex items-start gap-3">
                 {r.type === "crypto" ? (
                   <CryptoLogo symbol={r.symbol} name={r.name} wallet={r.wallet} />
@@ -1447,6 +1464,37 @@ export default function HoldingsTable({
         </div>
       </div>
 
+      {!arranging && <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
+        {!selectionActive ? (
+          <button type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium hover:bg-slate-50" onClick={() => { setSelecting(true); setSelectionMessage(""); }}>Select assets</button>
+        ) : <>
+          <button type="button" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50" disabled={removingSelected || folderRows.length === 0} onClick={() => setSelectedIds((current) => {
+            const next = new Set(current);
+            const allSelected = folderRows.every((row) => next.has(row.id));
+            for (const row of folderRows) { if (allSelected) next.delete(row.id); else next.add(row.id); }
+            return next;
+          })}>{folderRows.length > 0 && folderRows.every((row) => selectedIds.has(row.id)) ? "Deselect matching" : "Select matching"}</button>
+          <span className="text-sm text-slate-600">{selectedIds.size} selected (including hidden selections)</span>
+          <button type="button" className="rounded-lg bg-rose-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50" disabled={removingSelected || selectedIds.size === 0} onClick={() => {
+            const ids = [...selectedIds];
+            if (!window.confirm(`Remove ${ids.length} selected asset${ids.length === 1 ? "" : "s"} and all their transactions? This cannot be undone. Child assets in folders will be kept.`)) return;
+            startRemovingSelected(async () => {
+              try {
+                const result = await removeSelectedHoldings(ids);
+                if (result.error) { setSelectionMessage(result.error); return; }
+                setSelectedIds(new Set());
+                setSelecting(false);
+                setSelectionMessage(`Removed ${result.removed} asset${result.removed === 1 ? "" : "s"}.`);
+                router.refresh();
+              } catch { setSelectionMessage("Could not remove assets. Please try again."); }
+            });
+          }}>{removingSelected ? "Removing…" : "Remove selected"}</button>
+          <button type="button" className="px-2 py-1.5 text-sm text-slate-600 hover:underline disabled:opacity-50" disabled={removingSelected} onClick={() => { setSelecting(false); setSelectedIds(new Set()); setSelectionMessage(""); }}>Cancel</button>
+          <span className="w-full text-xs text-slate-500">Select matching includes assets in collapsed groups. Selections remain when filters change.</span>
+        </>}
+      </div>}
+      {selectionMessage && <p role="status" className="mx-4 mt-2 text-sm text-slate-600">{selectionMessage}</p>}
+
       {filingError && (
         <p role="alert" className="mx-4 mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
           {filingError}
@@ -1535,6 +1583,7 @@ export default function HoldingsTable({
         <table className="w-full min-w-[760px] text-sm">
           <thead className="text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
+              {selectionActive && <th className="w-12 px-4 py-3" scope="col"><span className="sr-only">Select</span></th>}
               {arranging && (
                 <th className="w-14 px-2 py-3 text-left font-medium" scope="col">
                   Order
