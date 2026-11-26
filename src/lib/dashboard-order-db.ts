@@ -222,14 +222,30 @@ export async function clearHoldingsFolders(): Promise<void> {
  */
 export const HOLDINGS_SECTIONS_SETTING = "holdings.sectionsOrder";
 
-/** Reads a section-order payload (comma-joined keys), dropping blanks/repeats. */
+/**
+ * Reads a section-order payload — comma-joined keys (the stored format), a
+ * JSON array string (the **Save layout** form field), or an array — dropping
+ * blanks/repeats. JSON input must be recognised here: splitting it on commas
+ * would mangle every key, and the known-key filter downstream would then clear
+ * the saved order, snapping dragged groups back on the next page load.
+ */
 export function parseHoldingsSections(raw: unknown): string[] {
-  const entries =
-    typeof raw === "string"
-      ? raw.split(",")
-      : Array.isArray(raw)
-        ? raw
-        : [];
+  let entries: unknown[] = [];
+  if (Array.isArray(raw)) {
+    entries = raw;
+  } else if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        entries = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        entries = [];
+      }
+    } else {
+      entries = trimmed.split(",");
+    }
+  }
   const seen = new Set<string>();
   const keys: string[] = [];
   for (const entry of entries) {

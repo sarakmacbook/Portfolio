@@ -112,3 +112,24 @@ test("all creation paths persist new root groups at the top", () => {
   const strip = readFileSync(resolve(__dirname, "../src/components/HoldingsFolders.tsx"), "utf8");
   assert.ok(strip.includes("onFoldersChange([result.folder, ...folders])"));
 });
+
+test("Save layout's JSON section payload round-trips without clearing the order", async () => {
+  const { parseHoldingsSections } = await import("../src/lib/dashboard-order-db");
+  const sections = ["bank", assetSectionKey(1), assetSectionKey(2), "exchange"];
+
+  // The Save layout form sends JSON.stringify(sections); every key must
+  // survive parsing exactly, or the known-key filter clears the saved order
+  // and a group dragged to the top snaps back after the next page load.
+  assert.deepEqual(parseHoldingsSections(JSON.stringify(sections)), sections);
+
+  // The stored format (comma-joined) and plain arrays keep working.
+  assert.deepEqual(parseHoldingsSections(sections.join(",")), sections);
+  assert.deepEqual(parseHoldingsSections(sections), sections);
+
+  // Blanks and repeats are still dropped, and junk never throws.
+  assert.deepEqual(parseHoldingsSections('["bank","","bank"]'), ["bank"]);
+  assert.deepEqual(parseHoldingsSections("bank,,bank"), ["bank"]);
+  assert.deepEqual(parseHoldingsSections("[not json"), []);
+  assert.deepEqual(parseHoldingsSections('{"bank":1}'), []);
+  assert.deepEqual(parseHoldingsSections(42), []);
+});
