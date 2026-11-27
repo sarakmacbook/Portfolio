@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isDatabaseConfigured } from "@/db";
 import {
   getExchangeCredentials,
   isExchangeId,
@@ -13,9 +14,18 @@ import { EXCHANGE_IDS, EXCHANGE_LABELS, verifyExchangeCredentials, type Exchange
 import {
   describeSyncResult,
   disconnectExchange,
+  exchangeGroupCandidates,
   syncExchange,
+  syncedAssetIds,
   type ExchangeSyncResult,
 } from "@/lib/exchange-sync";
+import { fileHoldingsIntoGroup } from "@/lib/group-filing";
+import {
+  assetRowKey,
+  normaliseGroupRequest,
+  type GroupPromptRow,
+  type HoldingsGroupRequest,
+} from "@/lib/holdings-group";
 
 export type ExchangeActionState = {
   error?: string;
@@ -24,6 +34,10 @@ export type ExchangeActionState = {
   ok?: boolean;
   ts?: number;
   result?: ExchangeSyncResult;
+  /** Holdings to offer in the "save as a group" dialog after a sync. */
+  groupCandidates?: GroupPromptRow[];
+  /** Name suggested in that dialog, e.g. "Binance" or "Exchanges". */
+  groupSuggestion?: string;
 };
 
 function field(fd: FormData, key: string): string {
@@ -34,6 +48,27 @@ function exchangeFrom(fd: FormData): ExchangeId {
   const value = field(fd, "exchange");
   if (!isExchangeId(value)) throw new Error("Unknown exchange");
   return value;
+}
+
+/**
+ * The group dialog's rows for a successful sync. A read failure here must not
+ * turn a sync that already wrote its deposits into an error, so it simply means
+ * "no dialog this time".
+ */
+async function groupRowsFor(
+  exchanges: readonly ExchangeId[],
+): Promise<Pick<ExchangeActionState, "groupCandidates" | "groupSuggestion">> {
+  try {
+    const rows = await exchangeGroupCandidates(exchanges);
+    if (rows.length === 0) return {};
+    const suggestion =
+      exchanges.length === 1
+        ? EXCHANGE_LABELS[exchanges[0]]
+        : `${exchanges.length} exchanges`;
+    return { groupCandidates: rows, groupSuggestion: suggestion };
+  } catch {
+    return {};
+  }
 }
 
 /** Rethrows exchange/API messages as-is; those are written for humans already. */
@@ -101,6 +136,7 @@ export async function saveExchangeKeyAction(
     message: `${EXCHANGE_LABELS[exchange]} connected — ${describeSyncResult(result, { label: false })}`,
     warning: result.warnings[0],
     result,
+    ...(await groupRowsFor([exchange])),
   };
 }
 
@@ -129,6 +165,7 @@ export async function syncExchangeAction(
     message: describeSyncResult(result),
     warning: result.warnings[0],
     result,
+    ...(await groupRowsFor([exchange])),
   };
 }
 
@@ -138,6 +175,7 @@ export async function syncAllExchangesAction(
   _fd: FormData,
 ): Promise<ExchangeActionState> {
   const results: ExchangeSyncResult[] = [];
+  const synced: ExchangeId[] = [];
   const errors: string[] = [];
   let connected = 0;
 
@@ -146,6 +184,7 @@ export async function syncAllExchangesAction(
       if (!(await getExchangeCredentials(exchange))) continue;
       connected += 1;
       results.push(await syncExchange(exchange));
+      synced.push(exchange);
     } catch (error) {
       errors.push(`${EXCHANGE_LABELS[exchange]}: ${messageOf(error, "sync failed")}`);
     }
@@ -167,7 +206,48 @@ export async function syncAllExchangesAction(
     ts: Date.now(),
     message: results.map((result) => describeSyncResult(result)).join(" "),
     warning,
+    ...(await groupRowsFor(synced)),
   };
+}
+
+/**
+ * Files holdings that a sync just brought in into a group from the same dialog
+ * the API import uses: a name, an optional logo and the ticked rows.
+ *
+ * Only assets an exchange balance points at can be filed, so a stale or crafted
+ * request cannot move unrelated holdings around.
+ */
+export async function fileSyncedHoldingsAction(
+  rawGroup: HoldingsGroupRequest | string | null,
+): Promise<ExchangeActionState> {
+  if (!isDatabaseConfigured()) return { error: "Connect the portfolio database before grouping holdings." };
+
+  try {
+    const requested = normaliseGroupRequest(rawGroup);
+    if (!requested) {
+      return { ok: true, ts: Date.now(), message: "Skipped — the synced holdings stay ungrouped." };
+    }
+
+    const available = await syncedAssetIds();
+    const wanted = requested.assetKeys;
+    const ids = available.filter((id) => !wanted || wanted.has(assetRowKey(id)));
+    const outcome = await fileHoldingsIntoGroup(requested, ids);
+
+    revalidatePath("/exchanges");
+    revalidatePath("/", "layout");
+    if (!outcome.group) {
+      return { ok: true, ts: Date.now(), message: "Sync finished.", warning: outcome.note.trim() };
+    }
+    return {
+      ok: true,
+      ts: Date.now(),
+      message: `Filed ${outcome.group.filed} ${
+        outcome.group.filed === 1 ? "holding" : "holdings"
+      } into the “${outcome.group.name}” group.`,
+    };
+  } catch (error) {
+    return { error: messageOf(error, "Could not file these holdings into a group.") };
+  }
 }
 
 /** Removes the stored key. Imported holdings stay in the portfolio. */

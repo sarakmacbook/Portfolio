@@ -1,59 +1,48 @@
 "use client";
 
 import { useId, useMemo, useRef, useState, type FormEvent } from "react";
-import type { CustomApiHolding, CustomApiImportGroupRequest } from "@/lib/custom-import-types";
 import { readFolderLogo } from "@/lib/folder-logo";
+import type { GroupPromptRow, HoldingsGroupRequest } from "@/lib/holdings-group";
 import { MAX_FOLDER_NAME_LENGTH, type FolderIconSettings } from "@/lib/holdings-folders";
-import type { AssetType } from "@/lib/constants";
 import { money } from "@/lib/format";
 import { FolderIcon } from "./ExchangeIcon";
 import { Modal } from "./ui";
 
-const TYPE_LABELS: Record<AssetType, string> = {
-  cash: "Cash",
-  stock: "Stock",
-  crypto: "Crypto",
-  other: "Other",
-};
-
-/** Matches the `type:SYMBOL` key the import action uses to file a row. */
-function rowKey(row: CustomApiHolding): string {
-  return `${row.type}:${row.symbol}`;
-}
-
 const NO_ICON: FolderIconSettings = { icon: "auto", glyph: "" };
 
 /**
- * Asked once per API import, right after the review step: name a group, give it
- * a logo, tick the holdings that belong in it — or skip and let every row import
- * as a plain holding. Mounted only while it is open, so each import starts from
- * the suggested name and a fully ticked list.
+ * The "save these holdings as a group" dialog, shared by the API import review
+ * step and every exchange sync: name a group, give it a logo, tick the holdings
+ * that belong in it — or skip and leave every row ungrouped.
+ *
+ * Mounted only while it is open, so each sync or import starts from a suggested
+ * name and a fully ticked list rather than the last answer.
  */
-export default function ImportGroupPrompt({
+export default function GroupPrompt({
   rows,
-  sourceName,
+  suggestedName,
   existingGroups,
   busy,
   onCancel,
   onConfirm,
   onSkip,
 }: {
-  /** The preview rows being imported — already filtered by the review table. */
-  rows: readonly CustomApiHolding[];
-  /** Connection name, used as the suggested group name. */
-  sourceName: string;
+  /** The holdings on offer, already narrowed to what this import or sync touched. */
+  rows: readonly GroupPromptRow[];
+  /** Suggested group name — the connection or exchange name. */
+  suggestedName: string;
   /** Root group names already in the portfolio — a match is reused, not duplicated. */
   existingGroups: readonly string[];
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (request: CustomApiImportGroupRequest) => void;
+  onConfirm: (request: HoldingsGroupRequest) => void;
   onSkip: () => void;
 }) {
-  const [name, setName] = useState(() => sourceName.trim().slice(0, MAX_FOLDER_NAME_LENGTH));
+  const [name, setName] = useState(() => suggestedName.trim().slice(0, MAX_FOLDER_NAME_LENGTH));
   const [icon, setIcon] = useState<FolderIconSettings>(NO_ICON);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(rows.map((row) => rowKey(row))),
+    () => new Set(rows.map((row) => row.key)),
   );
   const [preparingLogo, setPreparingLogo] = useState(false);
   const [logoError, setLogoError] = useState("");
@@ -73,18 +62,17 @@ export default function ImportGroupPrompt({
       (row) =>
         row.symbol.toLowerCase().includes(needle) ||
         row.name.toLowerCase().includes(needle) ||
-        TYPE_LABELS[row.type].toLowerCase().includes(needle),
+        row.label.toLowerCase().includes(needle),
     );
   }, [rows, query]);
 
-  const selectedCount = rows.filter((row) => selected.has(rowKey(row))).length;
+  const selectedCount = rows.filter((row) => selected.has(row.key)).length;
 
-  function toggle(row: CustomApiHolding) {
-    const key = rowKey(row);
+  function toggle(row: GroupPromptRow) {
     setSelected((current) => {
       const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(row.key)) next.delete(row.key);
+      else next.add(row.key);
       return next;
     });
   }
@@ -94,8 +82,8 @@ export default function ImportGroupPrompt({
     setSelected((current) => {
       const next = new Set(current);
       for (const row of visibleRows) {
-        if (shouldSelect) next.add(rowKey(row));
-        else next.delete(rowKey(row));
+        if (shouldSelect) next.add(row.key);
+        else next.delete(row.key);
       }
       return next;
     });
@@ -122,8 +110,8 @@ export default function ImportGroupPrompt({
     if (!wanted || selectedCount === 0 || busy || preparingLogo) return;
     onConfirm({
       name: wanted,
-      // Only the ticked rows are filed; the rest import ungrouped.
-      assetKeys: rows.filter((row) => selected.has(rowKey(row))).map(rowKey),
+      // Only the ticked rows are filed; the rest stay ungrouped.
+      assetKeys: rows.filter((row) => selected.has(row.key)).map((row) => row.key),
       ...(icon.icon === "auto" ? {} : { icon: { icon: icon.icon, glyph: icon.glyph, imageDataUrl: icon.imageDataUrl } }),
     });
   }
@@ -131,11 +119,12 @@ export default function ImportGroupPrompt({
   const previewFolder = { name: wanted || "Group", color: "#6366f1", ...icon };
 
   return (
-    <Modal open wide onClose={busy ? () => {} : onCancel} title="Save this import as a group">
+    <Modal open wide onClose={busy ? () => {} : onCancel} title="Save these holdings as a group">
       <form onSubmit={submit} className="space-y-4">
         <p className="text-sm leading-relaxed text-slate-600">
-          Keep the holdings you tick together on the dashboard by saving them in a group. You can
-          rename, re-icon or remove it later from <strong>Holdings</strong>.
+          Keep the holdings you tick together on the dashboard by saving them in a group. Nothing is
+          duplicated — a group is a label, and you can rename, re-icon or remove it later from{" "}
+          <strong>Holdings</strong>.
         </p>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -149,7 +138,7 @@ export default function ImportGroupPrompt({
               value={name}
               maxLength={MAX_FOLDER_NAME_LENGTH}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Nansen wallet"
+              placeholder="Long term, Binance, Play money…"
               autoComplete="off"
               autoFocus
               required
@@ -245,7 +234,7 @@ export default function ImportGroupPrompt({
               className="input"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Filter by symbol, name or type"
+              placeholder="Filter by symbol, name or source"
               aria-label="Filter the holdings in this group"
               autoComplete="off"
               spellCheck={false}
@@ -259,11 +248,11 @@ export default function ImportGroupPrompt({
           ) : (
             <ul className="max-h-60 divide-y divide-slate-100 overflow-y-auto">
               {visibleRows.map((row) => (
-                <li key={row.id}>
+                <li key={row.key}>
                   <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50/70">
                     <input
                       type="checkbox"
-                      checked={selected.has(rowKey(row))}
+                      checked={selected.has(row.key)}
                       onChange={() => toggle(row)}
                       disabled={busy}
                       className="h-4 w-4 shrink-0 accent-indigo-600"
@@ -272,7 +261,8 @@ export default function ImportGroupPrompt({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold">{row.symbol}</span>
                       <span className="block truncate text-xs text-slate-500">
-                        {row.name} · {TYPE_LABELS[row.type]}
+                        {row.name}
+                        {row.label ? ` · ${row.label}` : ""}
                       </span>
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-slate-500">
@@ -285,7 +275,7 @@ export default function ImportGroupPrompt({
           )}
 
           <p className="border-t border-slate-100 px-3 py-2 text-xs leading-relaxed text-slate-500">
-            Unticked holdings still import — they just stay ungrouped. Select all / Clear applies to
+            Unticked holdings are still kept — they just stay ungrouped. Select all / Clear applies to
             the rows the filter shows.
           </p>
         </div>
@@ -296,23 +286,23 @@ export default function ImportGroupPrompt({
             className="btn-primary"
             disabled={!wanted || selectedCount === 0 || busy || preparingLogo}
           >
-            {busy ? "Importing…" : `Create group & import ${selectedCount}`}
+            {busy ? "Saving…" : `Create group & add ${selectedCount}`}
           </button>
           <button
             type="button"
             className="btn-ghost"
             onClick={onSkip}
             disabled={busy}
-            title="Import every holding without a group"
+            title="Leave every holding ungrouped"
           >
-            Skip — import without a group
+            Skip — leave them ungrouped
           </button>
         </div>
 
         <p className="text-xs leading-relaxed text-slate-400">
           {selectedCount === 0
-            ? "Tick at least one holding to create the group, or skip to import all of them as plain rows."
-            : `Skipping imports all ${rows.length} as plain rows in the ungrouped section. You can still drag them into a group later.`}
+            ? "Tick at least one holding to create the group, or skip to leave them all as plain rows."
+            : `Skipping leaves all ${rows.length} as plain rows in the ungrouped section. You can still drag them into a group later.`}
         </p>
       </form>
     </Modal>

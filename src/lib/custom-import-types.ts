@@ -1,4 +1,5 @@
 import type { AssetType } from "@/lib/constants";
+import type { HoldingsGroupRequest } from "@/lib/holdings-group";
 
 export type CustomApiAuthMode = "none" | "bearer" | "header";
 export type CustomApiMethod = "GET" | "POST";
@@ -62,19 +63,10 @@ export type CustomApiPreviewActionResult = {
 /**
  * What the review step asks for before importing: a group name, an optional
  * logo, and which of the ticked holdings should be filed into it. Holdings left
- * out still import — they just stay ungrouped.
+ * out still import — they just stay ungrouped. Same shape the exchange page's
+ * sync dialog sends, so the two flows share one server-side validation.
  */
-export type CustomApiImportGroupRequest = {
-  name: string;
-  /** `type:SYMBOL` keys to file; `null`/omitted files every imported holding. */
-  assetKeys?: string[] | null;
-  /** Logo picked in the dialog. A reused group keeps its own instead. */
-  icon?: {
-    icon: "auto" | "exchange" | "emoji" | "image";
-    glyph?: string;
-    imageDataUrl?: string;
-  };
-};
+export type CustomApiImportGroupRequest = HoldingsGroupRequest;
 
 export type CustomApiImportActionResult = {
   ok?: boolean;
