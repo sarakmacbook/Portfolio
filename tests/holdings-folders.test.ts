@@ -381,6 +381,22 @@ test("group rows drag anywhere in the everyday table, not only via arrange pills
     "a one-click control moves a group above every asset and group",
   );
   assert.ok(
+    table.includes("function moveSectionToBottom(") &&
+      table.includes("onClick={() => moveSectionToBottom(key)}") &&
+      table.includes("below all assets"),
+    "the matching one-click control sends a group below every asset and group",
+  );
+  assert.ok(
+    table.includes("function moveSectionToBottom(") &&
+      table.includes('const last = sectionKeys[sectionKeys.length - 1]') &&
+      table.includes('moveKeyTo(sectionKeys, key, last, true)'),
+    "the last position comes from the full saved order, not the filtered one",
+  );
+  assert.ok(
+    table.includes('disabled={sectionSaving || sectionKeys[sectionKeys.length - 1] === key}'),
+    "the control is disabled when the group is already at the bottom",
+  );
+  assert.ok(
     table.includes("orderedSections.findIndex((section) => section.key === key)"),
     "the nudge controls follow the visible sections when filters are active",
   );

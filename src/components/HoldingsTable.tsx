@@ -522,6 +522,13 @@ export default function HoldingsTable({
     commitSectionOrder(moveKeyTo(sectionKeys, key, first, false), key);
   }
 
+  /** Sends a group straight below every asset and group, including hidden ones. */
+  function moveSectionToBottom(key: string) {
+    const last = sectionKeys[sectionKeys.length - 1];
+    if (!last || last === key) return;
+    commitSectionOrder(moveKeyTo(sectionKeys, key, last, true), key);
+  }
+
   /** Makes a group's header row (table row or mobile card) a drag source. */
   function sectionDragProps(key: string) {
     if (!arranging) return {};
@@ -1073,6 +1080,16 @@ export default function HoldingsTable({
           title={`Move ${label} down`}
         >
           ▼
+        </button>
+        <button
+          type="button"
+          className="grid h-6 w-6 place-items-center rounded-md text-[13px] text-slate-400 transition hover:bg-white hover:text-indigo-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:opacity-25"
+          onClick={() => moveSectionToBottom(key)}
+          disabled={sectionSaving || sectionKeys[sectionKeys.length - 1] === key}
+          aria-label={`Move ${label} below all assets`}
+          title="Move below all assets"
+        >
+          ⤓
         </button>
       </span>
     );
