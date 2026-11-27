@@ -82,7 +82,11 @@ export type HoldingFolder = FolderIconSettings & {
   id: string;
   name: string;
   color: string;
-  /** Remembered collapse state on the dashboard. */
+  /**
+   * Stored collapse state. The dashboard now opens every group hidden and only
+   * remembers what was opened for that visit, so this is false only where a
+   * caller asked for an expanded group explicitly; a missing value means hidden.
+   */
   collapsed: boolean;
   /** When set, this folder is nested inside the corresponding holding's page. */
   parentAssetId?: number;
@@ -154,7 +158,8 @@ export function normaliseFolders(value: unknown): HoldingFolder[] {
       name,
       color: isColor(color) ? color : FOLDER_COLORS[folders.length % FOLDER_COLORS.length],
       ...normaliseFolderIcon(item.icon, item.glyph, item.imageDataUrl),
-      collapsed: item.collapsed === true,
+      // Missing means hidden: a group only opens when something asks it to.
+      collapsed: item.collapsed !== false,
       ...(Number.isInteger(parentAssetId) && parentAssetId > 0 ? { parentAssetId } : {}),
     });
     if (folders.length >= MAX_FOLDERS) break;
@@ -225,7 +230,7 @@ export function makeFolder(
     name,
     color,
     ...normaliseFolderIcon(input.icon, input.glyph, input.imageDataUrl),
-    collapsed: false,
+    collapsed: true,
     ...(Number.isInteger(input.parentAssetId) && Number(input.parentAssetId) > 0
       ? { parentAssetId: Number(input.parentAssetId) }
       : {}),
