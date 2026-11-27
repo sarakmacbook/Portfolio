@@ -214,7 +214,7 @@ html.dark .border-rose-500, html.dark .focus\:border-rose-500:focus { border-col
 html.dark .border-amber-200, html.dark .border-amber-300 { border-color: rgb(245 158 11 / .34); }
 html.dark .bg-white, html.dark .bg-white\/70, html.dark .bg-white\/80, html.dark .hover\:bg-white:hover { background-color: #121625; }
 html.dark .crypto-logo-image { background-color: white; }
-html.dark .bg-slate-50, html.dark .bg-slate-50\/40, html.dark .bg-slate-50\/60, html.dark .hover\:bg-slate-50:hover, html.dark .hover\:bg-slate-50\/70:hover, html.dark .hover\:bg-slate-50\/80:hover { background-color: rgb(255 255 255 / .035); }
+html.dark .bg-slate-50, html.dark .bg-slate-50\/40, html.dark .bg-slate-50\/60, html.dark .bg-slate-50\/70, html.dark .hover\:bg-slate-50:hover, html.dark .hover\:bg-slate-50\/70:hover, html.dark .hover\:bg-slate-50\/80:hover { background-color: rgb(255 255 255 / .035); }
 html.dark .bg-slate-100, html.dark .hover\:bg-slate-100:hover { background-color: rgb(100 116 139 / .14); }
 html.dark .bg-slate-300 { background-color: #4b5568; }
 html.dark .bg-slate-900 { background-color: #eeeef5; color: #111322; }

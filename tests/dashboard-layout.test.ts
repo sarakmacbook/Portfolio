@@ -168,10 +168,12 @@ test("the four stat cards can be renamed and blank names fall back to defaults",
 
 test("navigation links map to the right sections", async () => {
   const {
+    IMPORT_NAV_LINKS,
     NAV_LINKS,
     PRIMARY_NAV_LINKS,
     SETTINGS_NAV_LINKS,
     isActivePath,
+    isImportPath,
     isSettingsPath,
   } = await import("../src/lib/nav-links");
 
@@ -184,21 +186,29 @@ test("navigation links map to the right sections", async () => {
     ["/", "/activity"],
   );
   assert.deepEqual(
+    IMPORT_NAV_LINKS.map((link) => link.label),
+    ["Exchanges", "Custom API"],
+  );
+  assert.deepEqual(
+    IMPORT_NAV_LINKS.map((link) => link.href),
+    ["/exchanges", "/imports"],
+  );
+  assert.deepEqual(
     SETTINGS_NAV_LINKS.map((link) => link.label),
-    ["General", "Exchanges", "Refresh prices", "Alerts", "Database"],
+    ["General", "Refresh prices", "Alerts", "Database"],
   );
   assert.deepEqual(
     SETTINGS_NAV_LINKS.map((link) => link.href),
-    ["/settings", "/exchanges", "/prices", "/alerts", "/database"],
+    ["/settings", "/prices", "/alerts", "/database"],
   );
-  assert.equal(NAV_LINKS.length, 7);
+  assert.equal(NAV_LINKS.length, 8);
   assert.deepEqual(
     NAV_LINKS.map((link) => link.label),
-    ["Dashboard", "Activity", "General", "Exchanges", "Refresh prices", "Alerts", "Database"],
+    ["Dashboard", "Activity", "Exchanges", "Custom API", "General", "Refresh prices", "Alerts", "Database"],
   );
   assert.deepEqual(
     NAV_LINKS.map((link) => link.href),
-    ["/", "/activity", "/settings", "/exchanges", "/prices", "/alerts", "/database"],
+    ["/", "/activity", "/exchanges", "/imports", "/settings", "/prices", "/alerts", "/database"],
   );
 
   assert.equal(isActivePath("/", "/"), true);
@@ -213,11 +223,17 @@ test("navigation links map to the right sections", async () => {
   assert.equal(isActivePath("/exchanges/binance", "/exchanges"), true);
   assert.equal(isActivePath("/prices", "/exchanges"), false);
 
+  assert.equal(isImportPath("/"), false);
+  assert.equal(isImportPath("/exchanges"), true);
+  assert.equal(isImportPath("/exchanges/binance"), true);
+  assert.equal(isImportPath("/imports"), true);
+  assert.equal(isImportPath("/prices"), false);
+
   assert.equal(isSettingsPath("/"), false);
   assert.equal(isSettingsPath("/assets/12"), false);
   assert.equal(isSettingsPath("/activity"), false);
-  assert.equal(isSettingsPath("/exchanges"), true);
-  assert.equal(isSettingsPath("/exchanges/binance"), true);
+  assert.equal(isSettingsPath("/exchanges"), false);
+  assert.equal(isSettingsPath("/imports"), false);
   assert.equal(isSettingsPath("/prices"), true);
   assert.equal(isSettingsPath("/alerts"), true);
   assert.equal(isSettingsPath("/database"), true);

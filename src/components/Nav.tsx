@@ -4,16 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  IMPORT_NAV_LINKS,
   PRIMARY_NAV_LINKS,
   SETTINGS_NAV_LINKS,
   isActivePath,
+  isImportPath,
   isSettingsPath,
 } from "@/lib/nav-links";
 import { PrivacyMenuItems } from "./PrivacyMenu";
 
-type DesktopMenu = "settings" | "privacy" | null;
+type DesktopMenu = "imports" | "settings" | "privacy" | null;
+type MobileSubmenu = "imports" | "settings" | null;
 
 const MOBILE_MENU_ID = "mobile-menu";
+const IMPORTS_MENU_ID = "imports-submenu";
 const SETTINGS_MENU_ID = "settings-submenu";
 const PRIVACY_MENU_ID = "privacy-submenu";
 
@@ -28,9 +32,10 @@ const PRIVACY_MENU_ID = "privacy-submenu";
  */
 export default function Nav() {
   const path = usePathname();
+  const inImports = isImportPath(path);
   const inSettings = isSettingsPath(path);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [mobileSubmenu, setMobileSubmenu] = useState<MobileSubmenu>(null);
   const [desktopMenu, setDesktopMenu] = useState<DesktopMenu>(null);
   const desktopNavRef = useRef<HTMLElement>(null);
 
@@ -101,8 +106,8 @@ export default function Nav() {
     const next = !mobileOpen;
     setDesktopMenu(null);
     setMobileOpen(next);
-    // Re-open the Settings section only when the current page lives there.
-    setMobileSettingsOpen(next ? inSettings : false);
+    // Re-open the section the current page lives in when the phone sheet opens.
+    setMobileSubmenu(next ? (inImports ? "imports" : inSettings ? "settings" : null) : null);
   }
 
   const desktopLinkClass = (href: string) => {
@@ -139,6 +144,53 @@ export default function Nav() {
             {link.label}
           </Link>
         ))}
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setDesktopMenu((value) => (value === "imports" ? null : "imports"))}
+            aria-expanded={desktopMenu === "imports"}
+            aria-controls={IMPORTS_MENU_ID}
+            aria-haspopup="menu"
+            className={desktopTriggerClass(inImports || desktopMenu === "imports")}
+          >
+            <span>Imports</span>
+            <span className="text-[11px] opacity-80" aria-hidden="true">
+              {desktopMenu === "imports" ? "▴" : "▾"}
+            </span>
+          </button>
+
+          {desktopMenu === "imports" && (
+            <div
+              id={IMPORTS_MENU_ID}
+              role="menu"
+              aria-label="Imports"
+              className="menu-surface absolute right-0 top-[calc(100%+.5rem)] z-50 grid w-64 gap-1 rounded-2xl p-2"
+            >
+              {IMPORT_NAV_LINKS.map((link) => {
+                const active = isActivePath(path, link.href);
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    role="menuitem"
+                    onClick={closeAll}
+                    className={`rounded-xl px-3.5 py-2.5 text-left transition ${
+                      active ? "bg-indigo-50 text-indigo-700" : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold">{link.label}</span>
+                    {link.hint && (
+                      <span className={`block text-xs ${active ? "text-indigo-700 opacity-80" : "text-slate-500"}`}>
+                        {link.hint}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="relative">
           <button
@@ -265,18 +317,57 @@ export default function Nav() {
 
             <button
               type="button"
-              onClick={() => setMobileSettingsOpen((value) => !value)}
-              aria-expanded={mobileSettingsOpen}
-              aria-controls="mobile-settings-submenu"
-              className={mobileRowClass(inSettings && !mobileSettingsOpen)}
+              onClick={() => setMobileSubmenu((value) => (value === "imports" ? null : "imports"))}
+              aria-expanded={mobileSubmenu === "imports"}
+              aria-controls="mobile-imports-submenu"
+              className={mobileRowClass(inImports || mobileSubmenu === "imports")}
             >
-              <span>Settings</span>
+              <span>Imports</span>
               <span className="text-xs opacity-75" aria-hidden="true">
-                {mobileSettingsOpen ? "▴" : "▾"}
+                {mobileSubmenu === "imports" ? "▴" : "▾"}
               </span>
             </button>
 
-            {mobileSettingsOpen && (
+            {mobileSubmenu === "imports" && (
+              <div id="mobile-imports-submenu" className="grid gap-1 pl-3">
+                {IMPORT_NAV_LINKS.map((link) => {
+                  const active = isActivePath(path, link.href);
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={closeAll}
+                      aria-current={active ? "page" : undefined}
+                      className={`rounded-xl px-4 py-2.5 text-sm ${
+                        active ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="block font-semibold">{link.label}</span>
+                      {link.hint && (
+                        <span className={`block text-xs ${active ? "text-indigo-700 opacity-80" : "text-slate-500"}`}>
+                          {link.hint}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setMobileSubmenu((value) => (value === "settings" ? null : "settings"))}
+              aria-expanded={mobileSubmenu === "settings"}
+              aria-controls="mobile-settings-submenu"
+              className={mobileRowClass(inSettings || mobileSubmenu === "settings")}
+            >
+              <span>Settings</span>
+              <span className="text-xs opacity-75" aria-hidden="true">
+                {mobileSubmenu === "settings" ? "▴" : "▾"}
+              </span>
+            </button>
+
+            {mobileSubmenu === "settings" && (
               <div id="mobile-settings-submenu" className="grid gap-1 pl-3">
                 {SETTINGS_NAV_LINKS.map((link) => {
                   const active = isActivePath(path, link.href);
@@ -292,11 +383,7 @@ export default function Nav() {
                     >
                       <span className="block font-semibold">{link.label}</span>
                       {link.hint && (
-                        <span
-                          className={`block text-xs ${
-                            active ? "text-indigo-700 opacity-80" : "text-slate-500"
-                          }`}
-                        >
+                        <span className={`block text-xs ${active ? "text-indigo-700 opacity-80" : "text-slate-500"}`}>
                           {link.hint}
                         </span>
                       )}
