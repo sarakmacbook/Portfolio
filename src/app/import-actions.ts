@@ -31,6 +31,7 @@ import type {
   CustomApiHolding,
   CustomApiImportActionResult,
   CustomApiImportConfig,
+  CustomApiImportGroupRequest,
   CustomApiPreview,
   CustomApiPreviewActionResult,
 } from "@/lib/custom-import-types";
@@ -163,24 +164,76 @@ function validateSelection(value: unknown): SelectedHolding[] {
   return [...unique.values()];
 }
 
+type GroupIcon = NonNullable<CustomApiImportGroupRequest["icon"]>;
+
+type RequestedGroup = {
+  name: string;
+  /** `null` = file every imported row; otherwise only these `type:SYMBOL` keys. */
+  assetKeys: Set<string> | null;
+  icon?: GroupIcon;
+};
+
+/**
+ * Reads the review step's group answer: a name, an optional logo, and which
+ * holdings to file. A plain string is still accepted so a tab opened before
+ * this step existed cannot fail — it means "file everything".
+ *
+ * `null` is the Skip button. An empty tick list also means no group: creating
+ * one with nothing in it would just leave an empty heading in Holdings.
+ */
+function normaliseGroupRequest(
+  raw: CustomApiImportGroupRequest | string | null | undefined,
+): RequestedGroup | null {
+  if (raw === null || raw === undefined) return null;
+  const record = typeof raw === "string" ? { name: raw } : raw;
+  const name = String(record.name ?? "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_FOLDER_NAME_LENGTH);
+  if (!name) return null;
+
+  let assetKeys: Set<string> | null = null;
+  if (Array.isArray(record.assetKeys)) {
+    assetKeys = new Set<string>();
+    for (const rawKey of record.assetKeys.slice(0, MAX_CUSTOM_IMPORT_ROWS)) {
+      const text = String(rawKey ?? "").trim();
+      const separator = text.indexOf(":");
+      if (separator <= 0) continue;
+      const type = text.slice(0, separator) as AssetType;
+      const symbol = text.slice(separator + 1).toUpperCase();
+      if (!(ASSET_TYPES as readonly string[]).includes(type)) continue;
+      if (!/^[A-Z0-9][A-Z0-9._-]{0,31}$/.test(symbol)) continue;
+      assetKeys.add(keyOf(type, symbol));
+    }
+    if (assetKeys.size === 0) return null;
+  }
+
+  const rawIcon = typeof record.icon === "object" && record.icon !== null ? record.icon : null;
+  const icon = rawIcon
+    ? {
+        icon: String(rawIcon.icon ?? "auto") as GroupIcon["icon"],
+        glyph: String(rawIcon.glyph ?? "").slice(0, 8),
+        imageDataUrl: String(rawIcon.imageDataUrl ?? ""),
+      }
+    : undefined;
+
+  return { name, assetKeys, ...(icon ? { icon } : {}) };
+}
+
 /** Imports selected preview rows as opening deposits. Duplicate symbols are skipped. */
 export async function importCustomApiHoldingsAction(
   rawRows: CustomApiHolding[],
   rawSourceName: string,
-  rawGroupName: string | null = null,
+  rawGroup: CustomApiImportGroupRequest | string | null = null,
 ): Promise<CustomApiImportActionResult> {
   if (!isDatabaseConfigured()) return { error: "Connect the portfolio database before importing holdings." };
 
   try {
     await ensureSchema();
     const rows = validateSelection(rawRows);
-    // `null` (or blank) is the user's Skip: the rows import as plain holdings.
-    const groupName =
-      (typeof rawGroupName === "string" ? rawGroupName : "")
-        .replace(/[\u0000-\u001f\u007f]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, MAX_FOLDER_NAME_LENGTH);
+    // `null` is the user's Skip: the rows import as plain holdings.
+    const requestedGroup = normaliseGroupRequest(rawGroup);
     const sourceName = String(rawSourceName ?? "Custom API")
       .replace(/[\u0000-\u001f\u007f]/g, " ")
       .replace(/\s+/g, " ")
@@ -190,7 +243,7 @@ export async function importCustomApiHoldingsAction(
     const knownAssets = await db.select({ type: assets.type, symbol: assets.symbol }).from(assets);
     const existingKeys = new Set(knownAssets.map((row) => keyOf(row.type, row.symbol)));
     const inserted = await db.transaction(async (transaction) => {
-      const ids: number[] = [];
+      const created: Array<{ id: number; key: string }> = [];
       for (const row of rows) {
         const key = keyOf(row.type, row.symbol);
         if (existingKeys.has(key)) continue;
@@ -227,9 +280,9 @@ export async function importCustomApiHoldingsAction(
             .onConflictDoNothing();
         }
         existingKeys.add(key);
-        ids.push(asset.id);
+        created.push({ id: asset.id, key });
       }
-      return ids;
+      return created;
     });
 
     let snapshotWarning = "";
@@ -241,21 +294,29 @@ export async function importCustomApiHoldingsAction(
       }
     }
 
-    // The review step asks for a group name and offers Skip. A named group is
-    // created (or reused, by name) and every imported holding is filed into it;
-    // skipping leaves the rows ungrouped, exactly as they were imported.
-    let group: { id: string; name: string } | undefined;
+    // The review step names a group, optionally uploads a logo, ticks the rows
+    // to file and offers Skip. Only the ticked holdings are filed; the rest
+    // still import, as plain ungrouped rows.
+    let group: { id: string; name: string; filed: number } | undefined;
     let groupNote = "";
-    if (groupName && inserted.length > 0) {
-      const folders = await loadHoldingsFolders();
-      const result = folderForImport(folders, groupName, { rootOnly: true });
+    if (requestedGroup && inserted.length > 0) {
+      const wantedKeys = requestedGroup.assetKeys;
+      const chosen = wantedKeys ? inserted.filter((row) => wantedKeys.has(row.key)) : inserted;
+      const folders = chosen.length > 0 ? await loadHoldingsFolders() : [];
+      const result =
+        chosen.length > 0
+          ? folderForImport(folders, requestedGroup.name, {
+              rootOnly: true,
+              ...(requestedGroup.icon ?? {}),
+            })
+          : { folders, folder: null };
       if (result.folder) {
         if (result.folders.length !== folders.length) await saveHoldingsFolders(result.folders);
         const current = await loadHoldingFolderAssignments(result.folders);
         const next = { ...current };
-        for (const id of inserted) next[id] = result.folder.id;
+        for (const row of chosen) next[row.id] = result.folder.id;
         await saveHoldingFolderAssignments(next, result.folders);
-        group = { id: result.folder.id, name: result.folder.name };
+        group = { id: result.folder.id, name: result.folder.name, filed: chosen.length };
       } else {
         groupNote = ` Imported without a group: there is no room for another one (${MAX_FOLDERS} max).`;
       }
@@ -265,12 +326,16 @@ export async function importCustomApiHoldingsAction(
     if (inserted.length > 0) revalidatePath("/", "layout");
     const skipped = rows.length - inserted.length;
     const skippedNote = skipped ? `; skipped ${skipped} already in the portfolio` : "";
+    const importedLabel = `${inserted.length} ${inserted.length === 1 ? "holding" : "holdings"}`;
+    const leftUngrouped = group ? inserted.length - group.filed : 0;
     const message =
       inserted.length === 0
         ? "Nothing new was imported; the selected symbols are already in your portfolio."
         : group
-          ? `Imported ${inserted.length} ${inserted.length === 1 ? "holding" : "holdings"} into the “${group.name}” group${skippedNote}.${snapshotWarning}${groupNote}`
-          : `Imported ${inserted.length} ${inserted.length === 1 ? "holding" : "holdings"}${skippedNote}.${snapshotWarning}${groupNote}`;
+          ? `Imported ${importedLabel}: filed ${group.filed} into the “${group.name}” group${
+              leftUngrouped ? `, left ${leftUngrouped} ungrouped` : ""
+            }${skippedNote}.${snapshotWarning}${groupNote}`
+          : `Imported ${importedLabel}${skippedNote}.${snapshotWarning}${groupNote}`;
     return {
       ok: true,
       message,

@@ -292,7 +292,13 @@ export function removeFolder(
 export function folderForImport(
   folders: readonly HoldingFolder[],
   name: string,
-  options: { rootOnly?: boolean } = {},
+  options: {
+    rootOnly?: boolean;
+    /** Icon for a *new* folder; a reused folder keeps its own. */
+    icon?: FolderIconKind;
+    glyph?: string;
+    imageDataUrl?: string;
+  } = {},
 ): { folders: HoldingFolder[]; folder: HoldingFolder | null } {
   const wanted = name.trim().slice(0, MAX_FOLDER_NAME_LENGTH);
   const list = folders.map((folder) => ({ ...folder }));
@@ -305,7 +311,15 @@ export function folderForImport(
   );
   if (existing) return { folders: list, folder: existing };
 
-  const folder = makeFolder({ name: wanted }, list);
+  const folder = makeFolder(
+    {
+      name: wanted,
+      ...(options.icon ? { icon: options.icon } : {}),
+      ...(options.glyph ? { glyph: options.glyph } : {}),
+      ...(options.imageDataUrl ? { imageDataUrl: options.imageDataUrl } : {}),
+    },
+    list,
+  );
   if (!folder) return { folders: list, folder: null };
   return { folders: [...list, folder], folder };
 }

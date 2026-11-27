@@ -575,11 +575,15 @@ Folders turn a long table into a few groups without changing any numbers:
    deleted, they just go back to being plain rows.
 5. Bulk imports ask for a group first. On the **Imports** page, tick the preview
    rows and press **Import**; a dialog asks you to name the group that will hold
-   them (it suggests the connection name) and offers **Skip — import without a
-   group** to bring them in as plain, ungrouped rows instead. A name matching an
-   existing group reuses it rather than creating a second one, so importing the
-   same API twice keeps everything in one group. Escape or ✕ cancels the import
-   without changing anything.
+   them (it suggests the connection name) and choose which rows go in:
+   **Upload logo** takes a JPG, PNG, WebP or GIF (saved as a small JPEG, exactly
+   like a folder logo), the list tick every holding by default, and the filter
+   box plus **Select all** / **Clear** narrow that down to the rows you want.
+   Unticked holdings still import — they simply stay ungrouped. **Skip — import
+   without a group** brings every row in as a plain, ungrouped holding. A name
+   matching an existing group reuses it (and keeps that group's logo) rather
+   than creating a second one, so importing the same API twice keeps everything
+   in one group. Escape or ✕ cancels the import without changing anything.
 
 On any holding's detail page, **Folders inside [holding name]** lets you create
 subfolders owned by that holding. Subfolders appear as chips — icon, name and
