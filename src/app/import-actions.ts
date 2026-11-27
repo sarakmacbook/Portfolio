@@ -20,6 +20,13 @@ import {
   publicCustomApiImportConfig,
   saveCustomApiImportConfig,
 } from "@/lib/custom-import-storage";
+import {
+  loadHoldingFolderAssignments,
+  loadHoldingsFolders,
+  saveHoldingFolderAssignments,
+  saveHoldingsFolders,
+} from "@/lib/dashboard-order-db";
+import { MAX_FOLDER_NAME_LENGTH, MAX_FOLDERS, folderForImport } from "@/lib/holdings-folders";
 import type {
   CustomApiHolding,
   CustomApiImportActionResult,
@@ -160,12 +167,20 @@ function validateSelection(value: unknown): SelectedHolding[] {
 export async function importCustomApiHoldingsAction(
   rawRows: CustomApiHolding[],
   rawSourceName: string,
+  rawGroupName: string | null = null,
 ): Promise<CustomApiImportActionResult> {
   if (!isDatabaseConfigured()) return { error: "Connect the portfolio database before importing holdings." };
 
   try {
     await ensureSchema();
     const rows = validateSelection(rawRows);
+    // `null` (or blank) is the user's Skip: the rows import as plain holdings.
+    const groupName =
+      (typeof rawGroupName === "string" ? rawGroupName : "")
+        .replace(/[\u0000-\u001f\u007f]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, MAX_FOLDER_NAME_LENGTH);
     const sourceName = String(rawSourceName ?? "Custom API")
       .replace(/[\u0000-\u001f\u007f]/g, " ")
       .replace(/\s+/g, " ")
@@ -226,14 +241,44 @@ export async function importCustomApiHoldingsAction(
       }
     }
 
+    // The review step asks for a group name and offers Skip. A named group is
+    // created (or reused, by name) and every imported holding is filed into it;
+    // skipping leaves the rows ungrouped, exactly as they were imported.
+    let group: { id: string; name: string } | undefined;
+    let groupNote = "";
+    if (groupName && inserted.length > 0) {
+      const folders = await loadHoldingsFolders();
+      const result = folderForImport(folders, groupName, { rootOnly: true });
+      if (result.folder) {
+        if (result.folders.length !== folders.length) await saveHoldingsFolders(result.folders);
+        const current = await loadHoldingFolderAssignments(result.folders);
+        const next = { ...current };
+        for (const id of inserted) next[id] = result.folder.id;
+        await saveHoldingFolderAssignments(next, result.folders);
+        group = { id: result.folder.id, name: result.folder.name };
+      } else {
+        groupNote = ` Imported without a group: there is no room for another one (${MAX_FOLDERS} max).`;
+      }
+    }
+
     revalidatePath("/imports");
     if (inserted.length > 0) revalidatePath("/", "layout");
     const skipped = rows.length - inserted.length;
+    const skippedNote = skipped ? `; skipped ${skipped} already in the portfolio` : "";
     const message =
       inserted.length === 0
         ? "Nothing new was imported; the selected symbols are already in your portfolio."
-        : `Imported ${inserted.length} ${inserted.length === 1 ? "holding" : "holdings"}${skipped ? `; skipped ${skipped} already in the portfolio` : ""}.${snapshotWarning}`;
-    return { ok: true, message, imported: inserted.length, skipped };
+        : group
+          ? `Imported ${inserted.length} ${inserted.length === 1 ? "holding" : "holdings"} into the “${group.name}” group${skippedNote}.${snapshotWarning}${groupNote}`
+          : `Imported ${inserted.length} ${inserted.length === 1 ? "holding" : "holdings"}${skippedNote}.${snapshotWarning}${groupNote}`;
+    return {
+      ok: true,
+      message,
+      imported: inserted.length,
+      skipped,
+      ...(group ? { group } : {}),
+      ...(groupNote ? { groupNote: groupNote.trim() } : {}),
+    };
   } catch (error) {
     return { error: errorMessage(error, "Could not import the selected holdings.") };
   }

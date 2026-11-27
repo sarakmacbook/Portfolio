@@ -573,6 +573,13 @@ Folders turn a long table into a few groups without changing any numbers:
    Folder and filing edits made in Arrange mode are applied when you click
    **Save layout**. **Reset to default** removes the folders; holdings are never
    deleted, they just go back to being plain rows.
+5. Bulk imports ask for a group first. On the **Imports** page, tick the preview
+   rows and press **Import**; a dialog asks you to name the group that will hold
+   them (it suggests the connection name) and offers **Skip — import without a
+   group** to bring them in as plain, ungrouped rows instead. A name matching an
+   existing group reuses it rather than creating a second one, so importing the
+   same API twice keeps everything in one group. Escape or ✕ cancels the import
+   without changing anything.
 
 On any holding's detail page, **Folders inside [holding name]** lets you create
 subfolders owned by that holding. Subfolders appear as chips — icon, name and
