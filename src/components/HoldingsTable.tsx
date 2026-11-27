@@ -60,6 +60,7 @@ import ExchangeIcon, { EXCHANGE_BRAND_COLORS, FolderIcon } from "./ExchangeIcon"
 import GripIcon from "./GripIcon";
 import { Modal } from "./ui";
 import AddAssetDialog, { type AssetFolderChoice, type CashAccount } from "./AddAssetDialog";
+import BalanceAdjustButton from "./BalanceAdjustButton";
 import HoldingsFolders from "./HoldingsFolders";
 import { useHoldingsArrange } from "./holdings-arrange";
 
@@ -1099,40 +1100,48 @@ export default function HoldingsTable({
                     </td>
                   )}
                   <td className="px-4 py-3">
-                    <Link href={`/assets/${r.id}`} className="flex items-center gap-3">
-                      {hasFolders && !arranging && viewDragHandle(r, "mr-1 -ml-1")}
-                      {r.type === "crypto" ? (
-                        <CryptoLogo symbol={r.symbol} name={r.name} wallet={r.wallet} />
-                      ) : (
-                        <span
-                          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-bold text-white"
-                          style={{ background: TYPE_META[r.type].color }}
-                        >
-                          {(r.symbol || r.name).slice(0, 4).toUpperCase()}
-                        </span>
-                      )}
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate font-medium text-slate-900 group-hover:text-indigo-600">
-                            {r.name}
+                    <div className="flex items-center gap-1">
+                      <Link href={`/assets/${r.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                        {hasFolders && !arranging && viewDragHandle(r, "mr-1 -ml-1")}
+                        {r.type === "crypto" ? (
+                          <CryptoLogo symbol={r.symbol} name={r.name} wallet={r.wallet} />
+                        ) : (
+                          <span
+                            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-xs font-bold text-white"
+                            style={{ background: TYPE_META[r.type].color }}
+                          >
+                            {(r.symbol || r.name).slice(0, 4).toUpperCase()}
                           </span>
-                          <SpamBadge row={r} />
-                          {r.priceSource && (
-                            <ExchangeIcon
-                              provider={r.priceSource}
-                              color={EXCHANGE_BRAND_COLORS[r.priceSource]}
-                              className="h-3.5 w-3.5 rounded"
-                              title={`Priced from ${PROVIDER_LABELS[r.priceSource]}`}
-                            />
-                          )}
+                        )}
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate font-medium text-slate-900 group-hover:text-indigo-600">
+                              {r.name}
+                            </span>
+                            <SpamBadge row={r} />
+                            {r.priceSource && (
+                              <ExchangeIcon
+                                provider={r.priceSource}
+                                color={EXCHANGE_BRAND_COLORS[r.priceSource]}
+                                className="h-3.5 w-3.5 rounded"
+                                title={`Priced from ${PROVIDER_LABELS[r.priceSource]}`}
+                              />
+                            )}
+                          </span>
+                          <span className="block text-xs text-slate-500">
+                            {r.symbol && r.symbol !== r.name ? `${r.symbol} · ` : ""}
+                            {r.type === "crypto" ? (r.cryptoCategory === "stablecoin" ? "Crypto · Stablecoin" : "Crypto · Volatile") : TYPE_META[r.type].label}
+                            {r.priceSource ? ` · ${PROVIDER_LABELS[r.priceSource]}` : ""}
+                          </span>
                         </span>
-                        <span className="block text-xs text-slate-500">
-                          {r.symbol && r.symbol !== r.name ? `${r.symbol} · ` : ""}
-                          {r.type === "crypto" ? (r.cryptoCategory === "stablecoin" ? "Crypto · Stablecoin" : "Crypto · Volatile") : TYPE_META[r.type].label}
-                          {r.priceSource ? ` · ${PROVIDER_LABELS[r.priceSource]}` : ""}
-                        </span>
-                      </span>
-                    </Link>
+                      </Link>
+                      {!arranging && (
+                        <BalanceAdjustButton
+                          asset={{ id: r.id, name: r.name, symbol: r.symbol, type: r.type, quantity: r.quantity, avgCost: r.avgCost }}
+                          compact
+                        />
+                      )}
+                    </div>
                   </td>
                   {arranging && (
                     <td className="px-4 py-3 align-middle">{folderControl(r)}</td>
@@ -1279,6 +1288,17 @@ export default function HoldingsTable({
                   <span className="w-10 text-right tabular-nums text-slate-600">{(r.weight * 100).toFixed(1)}%</span>
                 </span>
               </div>
+              {!arranging && (
+                <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+                  <BalanceAdjustButton
+                    asset={{ id: r.id, name: r.name, symbol: r.symbol, type: r.type, quantity: r.quantity, avgCost: r.avgCost }}
+                    className="flex-1"
+                  />
+                  <Link href={`/assets/${r.id}`} className="btn-ghost min-h-11 flex-1">
+                    Details
+                  </Link>
+                </div>
+              )}
             </li>
           );
   }

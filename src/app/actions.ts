@@ -12,6 +12,7 @@ import {
   type TxKind,
 } from "@/db/schema";
 import { kindsFor } from "@/lib/format";
+import { planBalanceAdjustment } from "@/lib/balance-adjust";
 import {
   ensureSchema,
   getAssetTransactions,
@@ -437,6 +438,49 @@ export async function addTransaction(_prev: ActionState, fd: FormData): Promise<
     await recordSnapshot();
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Failed to add transaction" };
+  }
+  refresh();
+  return { ok: true, ts: Date.now() };
+}
+
+/**
+ * Sets an asset's balance to a chosen figure without losing transaction
+ * history. The difference is booked as a correction at average cost, so P/L
+ * and cost basis stay honest and the next replay keeps the new balance.
+ */
+export async function adjustBalance(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try {
+    await ensureSchema();
+    const id = Number(str(fd, "id"));
+    if (!Number.isInteger(id) || id <= 0) throw new Error("Choose a holding");
+    const [asset] = await db.select().from(assets).where(eq(assets.id, id));
+    if (!asset) throw new Error("Holding not found");
+    const raw = str(fd, "balance").replace(/,/g, "");
+    if (!raw) throw new Error("Enter the new balance");
+    const plan = planBalanceAdjustment({
+      type: asset.type,
+      current: asset.quantity,
+      target: Number(raw),
+      avgCost: asset.avgCost,
+    });
+    if (!plan.ok) throw new Error(plan.error);
+    const date = validDate(str(fd, "date"));
+    const error = await validateWithNewTx(id, asset.type, { ...plan.plan, fee: 0, date });
+    if (error) throw new Error(error);
+    const note = str(fd, "note");
+    await db.insert(transactions).values({
+      assetId: id,
+      kind: plan.plan.kind,
+      quantity: plan.plan.quantity,
+      price: plan.plan.price,
+      fee: 0,
+      date,
+      note: note ? `Balance adjustment: ${note}` : "Balance adjustment",
+    });
+    await recomputeAsset(id);
+    await recordSnapshot();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to adjust balance" };
   }
   refresh();
   return { ok: true, ts: Date.now() };

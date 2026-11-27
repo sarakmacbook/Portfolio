@@ -9,6 +9,7 @@ import { deleteAsset, deleteTransaction } from "@/app/actions";
 import AutoDailySnapshot from "@/components/AutoDailySnapshot";
 import { EditAssetButton, PriceForm, TransactionForm } from "@/components/AssetForms";
 import AddAssetDialog, { type AssetFolderChoice } from "@/components/AddAssetDialog";
+import BalanceAdjustButton from "@/components/BalanceAdjustButton";
 import AssetSubfolders from "@/components/AssetSubfolders";
 import CryptoLogo from "@/components/CryptoLogo";
 import PriceHistorySection from "@/components/PriceHistorySection";
@@ -126,7 +127,17 @@ export default async function AssetPage({ params }: { params: Promise<{ id: stri
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <BalanceAdjustButton
+            asset={{
+              id: asset.id,
+              name: asset.name,
+              symbol: asset.symbol,
+              type: asset.type,
+              quantity: asset.quantity,
+              avgCost: asset.avgCost,
+            }}
+          />
           <EditAssetButton
             asset={{
               id: asset.id,

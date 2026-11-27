@@ -16,6 +16,9 @@ the deployment before storing real portfolio data (see the
 - Cash accounts (with a Cambodian bank picker), stocks, crypto, and other assets.
 - Buys, sells, deposits, withdrawals, and income, with average cost and realized
   / unrealized P/L replayed from the full transaction history.
+- **Adjust any holding's balance in one tap** — on the dashboard (desktop rows
+  and phone cards) or on its asset page — without losing transaction history or
+  inventing a gain. Works on mobile with a decimal keypad and 44 px buttons.
 - Manual prices plus live crypto quotes from Bybit, OKX, Binance, Coinbase,
   Kraken, or DexScreener, and live stock/ETF quotes from Yahoo Finance — no API
   keys required. A crypto holding can be **added from a specific exchange**, and
@@ -42,6 +45,7 @@ the deployment before storing real portfolio data (see the
 - **One reporting currency: USD.** See below.
 
 **Contents:** [Supported currencies](#supported-currencies) ·
+[Adjust a balance](#adjust-a-balance) ·
 [Add crypto from a wallet](#add-crypto-from-a-wallet) ·
 [Arrange the dashboard](#arrange-the-dashboard) ·
 [Holdings folders](#holdings-folders) · [Mobile layout](#mobile-layout) ·
@@ -114,6 +118,32 @@ whose tags record the original currency.
 > A true multi-currency ledger (KHR cash next to USD stocks) would need a
 > currency on each account plus a dated FX-rate table, and every total/snapshot
 > would have to convert at capture time. That is a feature, not a setting.
+
+## Adjust a balance
+
+Every holding has an **Adjust balance** control: a pencil on desktop rows, a
+full-width button on each phone card, and a button beside **Edit** on the asset
+page. Enter the balance you want, pick a date, and add an optional note. The
+dialog shows the current balance and previews the difference before saving.
+
+Balances are derived from the transaction ledger, so the app never overwrites
+`assets.quantity` directly. Saving writes one correction transaction:
+
+| Holding | Increase | Decrease | Price used |
+| --- | --- | --- | --- |
+| Cash | Deposit | Withdraw | `$1` (the fixed cash price) |
+| Stock / crypto / other | Buy | Sell | The holding's average cost |
+
+Using the average cost keeps the cost basis and realized/unrealized P/L
+unchanged by the correction — it only fixes the quantity. The entry appears in
+the holding's transaction history with the note `Balance adjustment` (or
+`Balance adjustment: <your note>`), so it can be audited or deleted later like
+any other transaction. If a correction would make an earlier/later transaction
+impossible (for example, selling more than was held on that date), the save is
+rejected with the reason instead of corrupting the ledger.
+
+On phones the dialog is a bottom sheet with a decimal keypad, 44 px buttons and
+safe-area padding; the page is usable without horizontal scrolling.
 
 ## Add crypto from a wallet
 
@@ -675,6 +705,8 @@ Every screen is built to work on a phone as well as a desktop:
 - **Charts** scale to the container width and support touch scrubbing.
 - Long names, notes and totals truncate or wrap instead of pushing the layout
   sideways; inputs use a 16 px font on small screens so iOS does not zoom.
+- Each holding card has **Adjust balance** and **Details** buttons in a
+  full-width action row, and the adjustment dialog opens as a bottom sheet.
 - **Tap targets** are at least 44 px (menu button, theme toggle, menu rows), taps
   skip Safari's 300 ms delay, and the sticky header + menu respect the notch and
   home indicator through `env(safe-area-inset-*)`.
