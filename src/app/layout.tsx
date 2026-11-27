@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Analytics } from "@vercel/analytics/next";
 import BackgroundRefresh from "@/components/BackgroundRefresh";
 import Nav from "@/components/Nav";
 import { PrivacyGate, PrivacyProvider } from "@/components/PrivacyProvider";
@@ -84,6 +85,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </Link>
           </footer>
         </PrivacyProvider>
+        {/* Cookieless page-view counts, used only on a Vercel deployment — the
+            script no-ops everywhere else. No portfolio data is sent. */}
+        <Analytics />
       </body>
     </html>
   );

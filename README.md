@@ -6,10 +6,15 @@ on your own machine, VPS, or home server, point it at your own database, and the
 data stays there.
 
 Prices are entered by hand, with optional one-click quotes from public exchange
-APIs (crypto) and Yahoo Finance (stocks). There is no hosted account, no
-analytics, and no proprietary backend. Portfolio has **no authentication or per-user data isolation** — protect
+APIs (crypto) and Yahoo Finance (stocks). There is no hosted account and no
+proprietary backend. Portfolio has **no authentication or per-user data isolation** — protect
 the deployment before storing real portfolio data (see the
 [self-hosting security checklist](#self-hosting-security-checklist)).
+
+The only optional visitor measurement is **Vercel Web Analytics**, which counts
+page views cookielessly and only when the app runs on Vercel (the script no-ops
+elsewhere). It never sees portfolio data. Delete `<Analytics />` from
+`src/app/layout.tsx` and drop `@vercel/analytics` if you would rather not have it.
 
 ## Highlights
 
@@ -50,7 +55,8 @@ the deployment before storing real portfolio data (see the
 [Arrange the dashboard](#arrange-the-dashboard) ·
 [Holdings folders](#holdings-folders) · [Mobile layout](#mobile-layout) ·
 [Background refresh and alerts](#background-refresh-and-alerts) ·
-[Run locally](#run-locally) · [Self-host on your own server](#self-host-on-your-own-server) ·
+[Proxy and VMess links](#proxy-and-vmess-links) ·
+[Visitor analytics](#visitor-analytics) · [Run locally](#run-locally) · [Self-host on your own server](#self-host-on-your-own-server) ·
 [Connect a database from the web UI](#connect-a-database-from-the-web-ui) ·
 [Export & import](#export-and-import-the-database) ·
 [Deploy on Vercel](#deploy-on-vercel-optional) · [Scripts](#scripts) ·
@@ -1134,6 +1140,18 @@ encrypted with AES-256-GCM using the same key as the exchange API keys
 only ever receives the host, port, username, the masked password hint and the
 masked link hints; passwords are kept when the field is left blank and are
 removed only by ticking **Remove the saved password**.
+
+## Visitor analytics
+
+`src/app/layout.tsx` renders `<Analytics />` from `@vercel/analytics/next`. On a
+Vercel deployment that adds cookieless page-view counts to the project's Web
+Analytics tab; on any other host the script is a no-op. It collects the page path,
+referrer and coarse device/browser information — never a holding, an amount or a
+saved credential. Vercel's project already has Web Analytics enabled, so nothing
+else needs configuring.
+
+To opt out, remove the import and the `<Analytics />` element, then
+`npm uninstall @vercel/analytics`.
 
 ## Run locally
 
