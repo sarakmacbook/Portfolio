@@ -584,8 +584,8 @@ Folders turn a long table into a few groups without changing any numbers:
    below one particular asset instead of below the whole ungrouped block. The
    ▲ / ▼ buttons on every group header move it past one visible row or group on
    touch screens and with a keyboard; **⤒** sends that group straight above
-   every asset and group in one click, even when other groups are hidden by the
-   current filter. Outside arrange mode the detailed order is stored the moment
+   every asset and group in one click, and **⤓** sends it straight to the
+   bottom, even when other groups are hidden by the current filter. Outside arrange mode the detailed order is stored the moment
    you drop or click; the pills and the table rows share one drag, so either can
    drop on the other.
 3. File existing holdings by dragging a row onto a folder chip in the normal
