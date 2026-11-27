@@ -4,6 +4,7 @@ import Link from "next/link";
 import { isDatabaseConfigured } from "@/db";
 import { getExchangeCredentialSummaries, getCredentialEncryptionKey } from "@/lib/exchange-credentials";
 import { lastExchangeSync, listExchangeHoldings } from "@/lib/exchange-sync";
+import { loadHoldingsFolders } from "@/lib/dashboard-order-db";
 import { EXCHANGE_LABELS } from "@/lib/exchanges";
 import { money, qty } from "@/lib/format";
 
@@ -12,12 +13,16 @@ export const dynamic = "force-dynamic";
 export default async function ExchangesPage() {
   if (!isDatabaseConfigured()) return <DatabaseSetup />;
 
-  const [summaries, lastSync, holdings, encryption] = await Promise.all([
+  const [summaries, lastSync, holdings, encryption, groups] = await Promise.all([
     getExchangeCredentialSummaries(),
     lastExchangeSync(),
     listExchangeHoldings(),
     getCredentialEncryptionKey().catch(() => null),
+    // The sync dialog offers the existing groups; a failed read only means it
+    // cannot warn about duplicates, so it must not break the page.
+    loadHoldingsFolders().catch(() => []),
   ]);
+  const existingGroups = groups.filter((folder) => !folder.parentAssetId).map((folder) => folder.name);
 
   const total = holdings.reduce((sum, row) => sum + row.value, 0);
   const byExchange = new Map<string, number>();
@@ -27,7 +32,7 @@ export default async function ExchangesPage() {
 
   return (
     <div className="space-y-6">
-      <ExchangeConnect summaries={summaries} lastSync={lastSync} />
+      <ExchangeConnect summaries={summaries} lastSync={lastSync} existingGroups={existingGroups} />
 
       <section className="card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">

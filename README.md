@@ -573,9 +573,11 @@ Folders turn a long table into a few groups without changing any numbers:
    Folder and filing edits made in Arrange mode are applied when you click
    **Save layout**. **Reset to default** removes the folders; holdings are never
    deleted, they just go back to being plain rows.
-5. Bulk imports ask for a group first. On the **Imports** page, tick the preview
-   rows and press **Import**; a dialog asks you to name the group that will hold
-   them (it suggests the connection name) and choose which rows go in:
+5. Bulk imports and exchange syncs ask for a group. On the **Imports** page,
+   tick the preview rows and press **Import**; a dialog asks you to name the
+   group that will hold them (it suggests the connection name) and choose which
+   rows go in. Every **Sync**/**Connect** on the Exchanges page opens the same
+   dialog with that venue's holdings:
    **Upload logo** takes a JPG, PNG, WebP or GIF (saved as a small JPEG, exactly
    like a folder logo), the list tick every holding by default, and the filter
    box plus **Select all** / **Clear** narrow that down to the rows you want.
@@ -1620,6 +1622,15 @@ What a sync does:
   the others. Prices still come from the normal price refresh — a freshly
   imported coin without a quote is reported as a warning and valued at the next
   **Refresh prices**.
+- Every finished sync then offers a **group dialog**, the same one the Imports
+  page uses: name a group (suggested as *Binance*, *OKX*…), upload a logo, tick
+  the holdings that belong in it — filter by symbol, name or exchange, with
+  **Select all** / **Clear** — and press **Create group & add N**. **Skip — leave
+  them ungrouped** closes it and keeps exactly what the sync wrote. One coin on
+  two exchanges appears once, labelled *2 exchanges*. The same dialog opens after
+  **Connect & import**, and **Sync all exchanges** offers every venue it synced
+  in one list. Only assets an exchange balance points at can be filed, so a stale
+  page cannot move unrelated holdings.
 
 Keys and privacy:
 

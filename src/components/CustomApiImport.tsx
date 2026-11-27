@@ -9,6 +9,7 @@ import {
 } from "@/app/import-actions";
 import type { AssetType } from "@/lib/constants";
 import { money, qty } from "@/lib/format";
+import { importRowKey, type GroupPromptRow } from "@/lib/holdings-group";
 import type {
   CustomApiHolding,
   CustomApiImportConfig,
@@ -16,7 +17,7 @@ import type {
   CustomApiImportPublicConfig,
   CustomApiPreview,
 } from "@/lib/custom-import-types";
-import ImportGroupPrompt from "./ImportGroupPrompt";
+import GroupPrompt from "./GroupPrompt";
 
 type Props = {
   initialConfig: CustomApiImportPublicConfig | null;
@@ -96,6 +97,14 @@ export default function CustomApiImport({ initialConfig, loadError, existingGrou
 
   const selectableRows = preview?.rows.filter((row) => !row.alreadyExists) ?? [];
   const selectedRows = preview?.rows.filter((row) => selected.has(row.id)) ?? [];
+  /** The same rows, shaped for the group dialog; `key` matches the action's keys. */
+  const promptRows: GroupPromptRow[] = selectedRows.map((row) => ({
+    key: importRowKey(row.type, row.symbol),
+    symbol: row.symbol,
+    name: row.name,
+    label: TYPE_LABELS[row.type],
+    value: row.value,
+  }));
   const selectedValue = selectedRows.reduce((sum, row) => sum + row.value, 0);
 
   function updateConfig<K extends keyof CustomApiImportConfig>(
@@ -601,10 +610,10 @@ export default function CustomApiImport({ initialConfig, loadError, existingGrou
         </section>
       )}
 
-      {groupPrompt && selectedRows.length > 0 && preview && (
-        <ImportGroupPrompt
-          rows={selectedRows}
-          sourceName={preview.sourceName}
+      {groupPrompt && promptRows.length > 0 && preview && (
+        <GroupPrompt
+          rows={promptRows}
+          suggestedName={preview.sourceName}
           existingGroups={existingGroups}
           busy={importing}
           onCancel={() => setGroupPrompt(false)}

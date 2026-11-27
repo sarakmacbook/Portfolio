@@ -1,19 +1,45 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
   disconnectExchangeAction,
+  fileSyncedHoldingsAction,
   saveExchangeKeyAction,
   syncAllExchangesAction,
   syncExchangeAction,
   type ExchangeActionState,
 } from "@/app/exchange-actions";
+import type { GroupPromptRow, HoldingsGroupRequest } from "@/lib/holdings-group";
+import GroupPrompt from "./GroupPrompt";
 import type { ExchangeCredentialSummary } from "@/lib/exchange-credentials";
 import { EXCHANGE_IDS, EXCHANGE_KEY_HELP, EXCHANGE_LABELS, type ExchangeId } from "@/lib/exchanges";
 import type { ExchangeSyncResult } from "@/lib/exchange-sync";
 
 const EMPTY: ExchangeActionState = {};
+const NO_OFFER = () => {};
+
+/** A sync that finished with holdings worth offering to the group dialog. */
+type GroupOffer = { rows: GroupPromptRow[]; suggestedName: string };
+
+/**
+ * Offers the group dialog once per finished sync. Keyed on `state.ts`, which the
+ * actions set to a fresh timestamp, so re-renders and unrelated form states
+ * never reopen it.
+ */
+function useGroupOffer(state: ExchangeActionState, onOffer: (offer: GroupOffer) => void) {
+  const handled = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!state.ok || !state.ts || state.ts === handled.current) return;
+    handled.current = state.ts;
+    if (state.groupCandidates && state.groupCandidates.length > 0) {
+      onOffer({
+        rows: state.groupCandidates,
+        suggestedName: state.groupSuggestion || "Synced holdings",
+      });
+    }
+  }, [state, onOffer]);
+}
 
 function timeAgo(iso?: string): string {
   if (!iso) return "never";
@@ -110,9 +136,17 @@ function DisconnectSubmit() {
   );
 }
 
-function ConnectForm({ exchange }: { exchange: ExchangeId }) {
+function ConnectForm({
+  exchange,
+  onOffer,
+}: {
+  exchange: ExchangeId;
+  onOffer?: (offer: GroupOffer) => void;
+}) {
   const [state, action] = useActionState(saveExchangeKeyAction, EMPTY);
   const label = EXCHANGE_LABELS[exchange];
+  // Connecting already imports the balances, so it offers the group dialog too.
+  useGroupOffer(state, onOffer ?? NO_OFFER);
   const fieldId = (name: string) => `${exchange}-${name}`;
 
   return (
@@ -184,12 +218,15 @@ function ConnectedPanel({
   exchange,
   summary,
   lastSync,
+  onOffer,
 }: {
   exchange: ExchangeId;
   summary: ExchangeCredentialSummary;
   lastSync?: string;
+  onOffer: (offer: GroupOffer) => void;
 }) {
   const [state, action] = useActionState(syncExchangeAction, EMPTY);
+  useGroupOffer(state, onOffer);
   const [disconnectState, disconnectAction] = useActionState(disconnectExchangeAction, EMPTY);
   const label = EXCHANGE_LABELS[exchange];
 
@@ -220,7 +257,7 @@ function ConnectedPanel({
       <details className="text-xs text-slate-500">
         <summary className="cursor-pointer select-none hover:text-slate-700">Replace the key</summary>
         <div className="pt-3">
-          <ConnectForm exchange={exchange} />
+          <ConnectForm exchange={exchange} onOffer={onOffer} />
         </div>
       </details>
 
@@ -233,12 +270,40 @@ function ConnectedPanel({
 export default function ExchangeConnect({
   summaries,
   lastSync,
+  existingGroups = [],
 }: {
   summaries: Record<ExchangeId, ExchangeCredentialSummary | null>;
   lastSync: Partial<Record<ExchangeId, string>>;
+  /** Root group names already in the portfolio, for the group dialog. */
+  existingGroups?: readonly string[];
 }) {
   const connectedCount = EXCHANGE_IDS.filter((id) => summaries[id]).length;
   const [allState, allAction] = useActionState(syncAllExchangesAction, EMPTY);
+  /** The group dialog, opened by whichever sync just finished. */
+  const [offer, setOffer] = useState<GroupOffer | null>(null);
+  const [filing, setFiling] = useState(false);
+  const [filedState, setFiledState] = useState<ExchangeActionState | null>(null);
+  const openOffer = useCallback((next: GroupOffer) => {
+    setFiledState(null);
+    setOffer(next);
+  }, []);
+  useGroupOffer(allState, openOffer);
+
+  /** Files the ticked holdings; Skip simply closes — the sync already happened. */
+  async function saveGroup(request: HoldingsGroupRequest) {
+    setFiling(true);
+    setFiledState(null);
+    try {
+      setFiledState(await fileSyncedHoldingsAction(request));
+    } catch (error) {
+      setFiledState({
+        error: error instanceof Error ? error.message : "Could not file these holdings into a group.",
+      });
+    } finally {
+      setFiling(false);
+      setOffer(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -264,6 +329,7 @@ export default function ExchangeConnect({
       </div>
 
       <Note state={allState} />
+      {filedState && <Note state={filedState} />}
 
       <div className="grid gap-4 xl:grid-cols-3">
         {EXCHANGE_IDS.map((exchange) => {
@@ -279,14 +345,31 @@ export default function ExchangeConnect({
                 )}
               </div>
               {summary ? (
-                <ConnectedPanel exchange={exchange} summary={summary} lastSync={lastSync[exchange]} />
+                <ConnectedPanel
+                  exchange={exchange}
+                  summary={summary}
+                  lastSync={lastSync[exchange]}
+                  onOffer={openOffer}
+                />
               ) : (
-                <ConnectForm exchange={exchange} />
+                <ConnectForm exchange={exchange} onOffer={openOffer} />
               )}
             </section>
           );
         })}
       </div>
+
+      {offer && (
+        <GroupPrompt
+          rows={offer.rows}
+          suggestedName={offer.suggestedName}
+          existingGroups={existingGroups}
+          busy={filing}
+          onCancel={() => setOffer(null)}
+          onConfirm={(request) => void saveGroup(request)}
+          onSkip={() => setOffer(null)}
+        />
+      )}
     </div>
   );
 }

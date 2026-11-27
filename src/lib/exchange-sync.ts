@@ -11,6 +11,7 @@ import {
 } from "@/lib/exchanges";
 import { fetchPreferredMarketPrice } from "@/lib/market-prices";
 import { ensureSchema, recomputeAsset, recordSnapshot, today } from "@/lib/portfolio";
+import { mergeSyncedHoldings, type GroupPromptRow } from "@/lib/holdings-group";
 
 /**
  * Turns exchange balances into portfolio holdings.
@@ -94,6 +95,28 @@ export async function listExchangeHoldings(): Promise<ExchangeHolding[]> {
       syncedAt: row.syncedAt.toISOString(),
     }))
     .sort((a, b) => b.value - a.value);
+}
+
+/**
+ * The rows the group dialog offers after a sync: one tick box per holding, with
+ * the exchange it came from (or how many, when a coin sits on several). Values
+ * move with the last price refresh, exactly like the table below the cards.
+ */
+export async function exchangeGroupCandidates(
+  exchanges: readonly ExchangeId[],
+): Promise<GroupPromptRow[]> {
+  const wanted = new Set<string>(exchanges);
+  const holdings = await listExchangeHoldings();
+  return mergeSyncedHoldings(holdings.filter((row) => wanted.has(row.exchange)));
+}
+
+/** Every asset id an exchange balance points at, for validating a filing request. */
+export async function syncedAssetIds(): Promise<number[]> {
+  await ensureSchema();
+  const rows = await db
+    .select({ assetId: exchangeBalances.assetId })
+    .from(exchangeBalances);
+  return [...new Set(rows.map((row) => row.assetId))];
 }
 
 /** Most recent sync per exchange, for "synced … ago" labels. */
