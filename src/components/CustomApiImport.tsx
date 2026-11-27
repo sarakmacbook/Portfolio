@@ -15,10 +15,13 @@ import type {
   CustomApiImportPublicConfig,
   CustomApiPreview,
 } from "@/lib/custom-import-types";
+import ImportGroupPrompt from "./ImportGroupPrompt";
 
 type Props = {
   initialConfig: CustomApiImportPublicConfig | null;
   loadError: string;
+  /** Root group names already in the portfolio, offered when naming a new group. */
+  existingGroups?: readonly string[];
 };
 
 function blankConfig(): CustomApiImportConfig {
@@ -74,7 +77,7 @@ function safeHost(endpoint: string): string {
   }
 }
 
-export default function CustomApiImport({ initialConfig, loadError }: Props) {
+export default function CustomApiImport({ initialConfig, loadError, existingGroups = [] }: Props) {
   const router = useRouter();
   const [config, setConfig] = useState<CustomApiImportConfig>(() =>
     initialConfig ? formConfigFromPublic(initialConfig) : blankConfig(),
@@ -84,6 +87,8 @@ export default function CustomApiImport({ initialConfig, loadError }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [importing, setImporting] = useState(false);
+  /** The name-the-group step shown before the review's Import button commits. */
+  const [groupPrompt, setGroupPrompt] = useState(false);
   const [forgetting, setForgetting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -104,6 +109,7 @@ export default function CustomApiImport({ initialConfig, loadError }: Props) {
     }));
     setPreview(null);
     setSelected(new Set());
+    setGroupPrompt(false);
     setError("");
     setMessage("");
   }
@@ -115,6 +121,7 @@ export default function CustomApiImport({ initialConfig, loadError }: Props) {
     setMessage("");
     setPreview(null);
     setSelected(new Set());
+    setGroupPrompt(false);
     try {
       const result = await previewCustomApiImportAction(config);
       if (!result.ok || !result.preview || !result.config) {
@@ -148,14 +155,19 @@ export default function CustomApiImport({ initialConfig, loadError }: Props) {
     setSelected(shouldSelect ? new Set(selectableRows.map((row) => row.id)) : new Set());
   }
 
-  async function importSelected() {
+  /**
+   * Commits the ticked rows. `groupName` is what the user typed in the group
+   * prompt; the Skip button passes `null`, which imports plain holdings.
+   */
+  async function importSelected(groupName: string | null) {
     if (!preview || selectedRows.length === 0) return;
+    setGroupPrompt(false);
     setImporting(true);
     setError("");
     setMessage("");
     try {
       const selectedIds = new Set(selectedRows.map((row) => row.id));
-      const result = await importCustomApiHoldingsAction(selectedRows, preview.sourceName);
+      const result = await importCustomApiHoldingsAction(selectedRows, preview.sourceName, groupName);
       if (!result.ok) {
         setError(result.error || "Could not import these holdings.");
         return;
@@ -197,6 +209,7 @@ export default function CustomApiImport({ initialConfig, loadError }: Props) {
       setConfig(blankConfig());
       setPreview(null);
       setSelected(new Set());
+      setGroupPrompt(false);
       setMessage(result.message || "Connection forgotten.");
       router.refresh();
     } catch (caught) {
@@ -574,11 +587,28 @@ export default function CustomApiImport({ initialConfig, loadError }: Props) {
             <p className="max-w-xl text-xs text-slate-500">
               Import creates opening deposits; it does not overwrite existing holdings or transactions.
             </p>
-            <button type="button" className="btn-primary" onClick={() => void importSelected()} disabled={importing || selectedRows.length === 0}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setGroupPrompt(true)}
+              disabled={importing || selectedRows.length === 0}
+            >
               {importing ? "Importing…" : `Import ${selectedRows.length} ${selectedRows.length === 1 ? "holding" : "holdings"}`}
             </button>
           </div>
         </section>
+      )}
+
+      {groupPrompt && selectedRows.length > 0 && preview && (
+        <ImportGroupPrompt
+          count={selectedRows.length}
+          sourceName={preview.sourceName}
+          existingGroups={existingGroups}
+          busy={importing}
+          onCancel={() => setGroupPrompt(false)}
+          onConfirm={(name) => void importSelected(name)}
+          onSkip={() => void importSelected(null)}
+        />
       )}
     </div>
   );

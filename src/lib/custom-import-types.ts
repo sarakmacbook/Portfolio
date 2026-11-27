@@ -65,4 +65,8 @@ export type CustomApiImportActionResult = {
   message?: string;
   imported?: number;
   skipped?: number;
+  /** The group the imported holdings were filed into, when the user named one. */
+  group?: { id: string; name: string };
+  /** Set when a group was named but the import had to go ahead without it. */
+  groupNote?: string;
 };

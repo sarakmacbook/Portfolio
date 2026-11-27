@@ -275,23 +275,34 @@ export function removeFolder(
 }
 
 /**
- * The folder a wallet import should be filed into: the existing folder with that
- * name (compared case-insensitively, so importing the same wallet twice does not
- * create "0x1234…abcd" twice), or a fresh one appended to the list.
+ * The folder a wallet or API import should be filed into: the existing folder
+ * with that name (compared case-insensitively, so importing the same wallet
+ * twice does not create "0x1234…abcd" twice), or a fresh one appended to the
+ * list.
  *
  * `folder` is `null` when the name is blank or there is no room for another
  * folder (`MAX_FOLDERS`), in which case the caller imports the holdings without
  * a folder rather than failing the whole import.
+ *
+ * `options.rootOnly` ignores subfolders when looking for a name match: a
+ * subfolder belongs to one holding's page, so a bulk import that happens to
+ * share its name should start a portfolio-level group instead of pouring rows
+ * into that holding's folder.
  */
 export function folderForImport(
   folders: readonly HoldingFolder[],
   name: string,
+  options: { rootOnly?: boolean } = {},
 ): { folders: HoldingFolder[]; folder: HoldingFolder | null } {
   const wanted = name.trim().slice(0, MAX_FOLDER_NAME_LENGTH);
   const list = folders.map((folder) => ({ ...folder }));
   if (!wanted) return { folders: list, folder: null };
 
-  const existing = list.find((folder) => folder.name.toLowerCase() === wanted.toLowerCase());
+  const existing = list.find(
+    (folder) =>
+      folder.name.toLowerCase() === wanted.toLowerCase() &&
+      (!options.rootOnly || !folder.parentAssetId),
+  );
   if (existing) return { folders: list, folder: existing };
 
   const folder = makeFolder({ name: wanted }, list);
