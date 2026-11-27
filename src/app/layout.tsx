@@ -12,7 +12,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Portfolio",
-  description: "Track cash, stocks and crypto holdings with manual input.",
+  description: "Track cash, stocks and crypto holdings with manual entry and read-only API imports.",
   applicationName: "Portfolio",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -78,7 +78,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <PrivacyGate>{privacy.locked ? null : children}</PrivacyGate>
           </main>
           <footer className="mx-auto max-w-6xl px-4 pb-[calc(2.5rem+env(safe-area-inset-bottom))] text-center text-xs text-slate-400 sm:px-6">
-            All values entered manually · Amounts in USD ·{" "}
+            Manual entry and read-only imports · Amounts in USD ·{" "}
             <Link href="/alerts" className="hover:text-slate-600 hover:underline">
               Price alerts
             </Link>
