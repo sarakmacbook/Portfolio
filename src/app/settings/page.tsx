@@ -1,9 +1,11 @@
 import DatabaseSetup from "@/components/DatabaseSetup";
 import Link from "next/link";
 import PriceUpdatesSettings from "@/components/PriceUpdatesSettings";
+import ProxySettings from "@/components/ProxySettings";
 import { isDatabaseConfigured } from "@/db";
 import { getAlertSettings, getLastPriceRefresh } from "@/lib/alerts";
 import { MAX_REFRESH_MINUTES, MIN_REFRESH_MINUTES } from "@/lib/alert-rules";
+import { getPublicProxySettings } from "@/lib/proxy-settings-db";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,13 @@ function timeAgo(date: Date | null): string | null {
 export default async function SettingsPage() {
   if (!isDatabaseConfigured()) return <DatabaseSetup />;
 
-  const [settings, lastRefresh] = await Promise.all([getAlertSettings(), getLastPriceRefresh()]);
+  const [settings, lastRefresh, proxy] = await Promise.all([
+    getAlertSettings(),
+    getLastPriceRefresh(),
+    // A proxy read never throws (it degrades to "off"), but the page must not
+    // depend on it either way.
+    getPublicProxySettings().catch(() => null),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -39,6 +47,8 @@ export default async function SettingsPage() {
         }}
         lastUpdatedLabel={timeAgo(lastRefresh)}
       />
+
+      {proxy && <ProxySettings settings={proxy} />}
 
       <section className="card p-5">
         <h2 className="text-sm font-semibold text-slate-900">Three ways prices stay current</h2>

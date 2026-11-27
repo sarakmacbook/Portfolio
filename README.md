@@ -1052,6 +1052,57 @@ the page triggers a throttled refresh on the interval above.
 - The alert log (`alert_events`) is pruned after 90 days by scheduled runs.
 - Web Push requires HTTPS in production (localhost is exempt in most browsers).
 
+## Proxy and VMess links
+
+Settings → **Proxy & VPN** sends the app's own server-side requests — price feeds,
+exchange balances, wallet explorers, Telegram — through an HTTP proxy, so those
+services see the proxy's address instead of the deployment's. It works like the
+proxy switch in Telegram: toggling it changes the IP the app goes out from. Your
+browser traffic is untouched; the browser uses whatever proxy the operating
+system or browser is set to.
+
+| Field | What it does |
+| --- | --- |
+| Connection | `Direct` (default) or `HTTP proxy` |
+| Host / Port | Where the proxy listens, e.g. `proxy.example.com` / `8080` |
+| Username / Password | Optional proxy credentials, sent as `Proxy-Authorization` |
+| Proxy links | `vmess://`, `vless://`, `trojan://`, `ss://`, `socks://`, `http://` links kept as an encrypted reference |
+| Test connection | Asks an IP-echo service twice and shows the direct IP next to the proxied one |
+
+How it works: the saved proxy is installed as undici's **global dispatcher** when
+the server starts (`src/instrumentation.ts`) and again the moment the settings are
+saved, so every `fetch` the app makes is tunnelled through it — no price or
+exchange call is left behind, and turning it off restores a direct agent. A
+settings problem, an unreachable database, or a malformed proxy URL falls back to
+a direct connection rather than breaking refreshes. Requests the proxy cannot
+handle fail normally; the app reports the error where it happens.
+
+### VMess, VLESS, Trojan and Shadowsocks
+
+Links are **stored, not dialled**: those are tunnel protocols with their own
+crypto, transport and TLS rules, and a Node server cannot speak them directly.
+Keep the link here (encrypted, masked, shown only as `vmess://••••…`) and run a
+client that exposes the tunnel as a local HTTP proxy:
+
+```bash
+xray run -c config.json   # HTTP inbound on 127.0.0.1:8080, outbound = your vmess link
+```
+
+Then set Host `127.0.0.1` and Port `8080` above. On Vercel there is no
+`127.0.0.1` you control, so use a public HTTP proxy address instead (or
+self-host, where the Xray client can run next to the app). Click **Test
+connection**: if the two addresses differ, the app is really going out through
+the proxy.
+
+### Storage
+
+The whole proxy configuration — host, credentials and the saved links — is
+encrypted with AES-256-GCM using the same key as the exchange API keys
+(`EXCHANGE_CREDENTIALS_KEY`, or the generated key in `app_settings`). The browser
+only ever receives the host, port, username, the masked password hint and the
+masked link hints; passwords are kept when the field is left blank and are
+removed only by ticking **Remove the saved password**.
+
 ## Run locally
 
 ```bash
