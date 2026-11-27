@@ -22,7 +22,7 @@ test("explicit insertion saves normally but stages changes while arranging", () 
   assert.ok(insert.includes("await saveHoldingFolderAssignment({ assetId, folderId: target.id })"));
   assert.ok(insert.indexOf("if (!result.ok)") < insert.indexOf("setAssignments("));
   assert.ok(insert.includes("setInsertError("));
-  assert.ok(insert.includes("next.delete(target.id)"), "inserted holding's group expands");
+  assert.ok(insert.includes("next.add(target.id)"), "inserted holding's group opens so the row is visible");
   assert.match(table, /function fileHolding\([^\n]+\{\s+if \(!arranging\) return/);
   assert.match(table, /function sectionDragProps\([^\n]+\{\s+if \(!arranging\) return/);
 });

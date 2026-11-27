@@ -121,6 +121,17 @@ test("makeFolder builds a folder with a unique id, colour and clamped name", () 
   assert.equal(makeFolder({ name: "One more" }, full), null);
 });
 
+test("groups start hidden: a missing flag and a fresh folder are both collapsed", () => {
+  const [restored] = normaliseFolders([{ id: "long-term", name: "Long term" }]);
+  assert.equal(restored.collapsed, true, "a stored folder without the flag opens collapsed");
+
+  const [explicit] = normaliseFolders([{ id: "binance", name: "Binance", collapsed: false }]);
+  assert.equal(explicit.collapsed, false, "an explicit expanded flag is still respected");
+
+  const created = makeFolder({ name: "Play money" }, []);
+  assert.equal(created?.collapsed, true, "a newly created group starts collapsed");
+});
+
 test("updateFolder renames, recolours and re-icons without touching other folders", () => {
   const folders = [folder("a", "Long term"), folder("b", "Play money")];
   const renamed = updateFolder(folders, "a", { name: " Forever ", color: "#ef4444" });

@@ -251,10 +251,15 @@ export default function HoldingsTable({
   const [spamCleanup, setSpamCleanup] = useState("");
   const [removingSpam, startRemovingSpam] = useTransition();
   const router = useRouter();
-  /** Collapsed groups — a view preference, not part of the saved layout. */
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
-    () => new Set(folders.filter((folder) => folder.collapsed).map((folder) => folder.id)),
-  );
+  /**
+   * The groups the user opened on this visit. Every group starts collapsed, so
+   * the dashboard opens as a short list of folders (each header still shows its
+   * count and value) instead of a wall of rows; tapping a header reveals one for
+   * the session. Nothing here is saved, so a reload is hidden again — and
+   * Arrange layout shows every row regardless, since that is where rows are
+   * dragged and filed.
+   */
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
   const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
@@ -865,7 +870,7 @@ export default function HoldingsTable({
   }, [sectionKeys, rootFolders, groups, ungrouped, folderFilter, query, filter]);
 
   function toggleGroup(key: string) {
-    setCollapsedGroups((current) => {
+    setExpandedGroups((current) => {
       const next = new Set(current);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -912,9 +917,9 @@ export default function HoldingsTable({
           setAnnouncement(`${rowLabel(assetId)} added to ${target.name}.`);
           router.refresh();
         }
-        setCollapsedGroups((current) => {
+        setExpandedGroups((current) => {
           const next = new Set(current);
-          next.delete(target.id);
+          next.add(target.id);
           return next;
         });
         setInsertFolderId(null);
@@ -992,7 +997,8 @@ export default function HoldingsTable({
   /** Group heading shared by the table and the phone list. */
   function groupHeader(group: FolderGroup<HoldingRow>) {
     const key = group.folder.id;
-    const isCollapsed = collapsedGroups.has(key);
+    // Arrange layout always shows the rows, because that is where they are dragged.
+    const isCollapsed = !arranging && !expandedGroups.has(key);
     /** Unrealized P/L of the holdings under this header, not of the portfolio. */
     const groupPnl = group.rows.reduce((sum, row) => sum + row.pnl, 0);
     return (
@@ -1642,7 +1648,7 @@ export default function HoldingsTable({
                       </span>
                     </th>
                   </tr>
-                  {!collapsedGroups.has(section.key) &&
+                  {(arranging || expandedGroups.has(section.key)) &&
                     section.group.rows.map((r) =>
                       renderDesktopRow(r, { key: section.key, position }, true),
                     )}
@@ -1695,7 +1701,7 @@ export default function HoldingsTable({
                   {sectionMoveControls(section.key, position)}
                 </span>
               </li>
-              {!collapsedGroups.has(section.key) &&
+              {(arranging || expandedGroups.has(section.key)) &&
                 section.group.rows.map((r) =>
                   renderMobileCard(r, { key: section.key, position }, true),
                 )}

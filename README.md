@@ -628,8 +628,13 @@ of holdings, the folder's own total and the unrealized P/L of its holdings —
 followed by that folder's rows. The rows under a header get a light indigo rail
 and a small indent so it is clear which assets belong to the group. Each header
 collapses, which is handy on a phone where the groups become stacked cards.
-There is no *Unfiled* group or chip: a holding without a folder is not a category,
-it is just a holding.
+Groups open **hidden**: the dashboard first shows one header per folder — name,
+holding count, the group's total and its P/L — instead of every row, and
+clicking a header reveals that group for the visit (a reload hides it again,
+nothing about it is saved). Filing a holding into a group opens that group so
+the new row is visible, and **Arrange layout** shows every row regardless, since
+that is where rows are dragged. There is no *Unfiled* group or chip: a holding
+without a folder is not a category, it is just a holding.
 
 Importing a wallet from **Add via wallet address** creates a folder named after
 the wallet (or whatever you type in *File into a folder*) and files the imported
