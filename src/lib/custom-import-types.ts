@@ -59,6 +59,23 @@ export type CustomApiPreviewActionResult = {
   preview?: CustomApiPreview;
 };
 
+/**
+ * What the review step asks for before importing: a group name, an optional
+ * logo, and which of the ticked holdings should be filed into it. Holdings left
+ * out still import — they just stay ungrouped.
+ */
+export type CustomApiImportGroupRequest = {
+  name: string;
+  /** `type:SYMBOL` keys to file; `null`/omitted files every imported holding. */
+  assetKeys?: string[] | null;
+  /** Logo picked in the dialog. A reused group keeps its own instead. */
+  icon?: {
+    icon: "auto" | "exchange" | "emoji" | "image";
+    glyph?: string;
+    imageDataUrl?: string;
+  };
+};
+
 export type CustomApiImportActionResult = {
   ok?: boolean;
   error?: string;
@@ -66,7 +83,7 @@ export type CustomApiImportActionResult = {
   imported?: number;
   skipped?: number;
   /** The group the imported holdings were filed into, when the user named one. */
-  group?: { id: string; name: string };
+  group?: { id: string; name: string; filed: number };
   /** Set when a group was named but the import had to go ahead without it. */
   groupNote?: string;
 };

@@ -12,6 +12,7 @@ import { money, qty } from "@/lib/format";
 import type {
   CustomApiHolding,
   CustomApiImportConfig,
+  CustomApiImportGroupRequest,
   CustomApiImportPublicConfig,
   CustomApiPreview,
 } from "@/lib/custom-import-types";
@@ -156,10 +157,11 @@ export default function CustomApiImport({ initialConfig, loadError, existingGrou
   }
 
   /**
-   * Commits the ticked rows. `groupName` is what the user typed in the group
-   * prompt; the Skip button passes `null`, which imports plain holdings.
+   * Commits the ticked rows. `group` is the group prompt's answer — name, logo
+   * and the rows to file; the Skip button passes `null`, which imports plain
+   * holdings.
    */
-  async function importSelected(groupName: string | null) {
+  async function importSelected(group: CustomApiImportGroupRequest | null) {
     if (!preview || selectedRows.length === 0) return;
     setGroupPrompt(false);
     setImporting(true);
@@ -167,7 +169,7 @@ export default function CustomApiImport({ initialConfig, loadError, existingGrou
     setMessage("");
     try {
       const selectedIds = new Set(selectedRows.map((row) => row.id));
-      const result = await importCustomApiHoldingsAction(selectedRows, preview.sourceName, groupName);
+      const result = await importCustomApiHoldingsAction(selectedRows, preview.sourceName, group);
       if (!result.ok) {
         setError(result.error || "Could not import these holdings.");
         return;
@@ -601,12 +603,12 @@ export default function CustomApiImport({ initialConfig, loadError, existingGrou
 
       {groupPrompt && selectedRows.length > 0 && preview && (
         <ImportGroupPrompt
-          count={selectedRows.length}
+          rows={selectedRows}
           sourceName={preview.sourceName}
           existingGroups={existingGroups}
           busy={importing}
           onCancel={() => setGroupPrompt(false)}
-          onConfirm={(name) => void importSelected(name)}
+          onConfirm={(group) => void importSelected(group)}
           onSkip={() => void importSelected(null)}
         />
       )}
