@@ -81,7 +81,7 @@ export default function StatsGrid({
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4">
         {order.map((key, position) => {
           const meta = DASHBOARD_STATS[key];
           const card = cards[key];
@@ -148,7 +148,7 @@ export default function StatsGrid({
                   </span>
                 </div>
               )}
-              <div className="card p-4">
+              <div className="card min-w-0 p-3 sm:p-4">
                 {arranging ? (
                   <input
                     type="text"
@@ -166,7 +166,7 @@ export default function StatsGrid({
                 )}
                 {key === "realized" ? <DailyPerformance {...dailyPerformance} /> : <>
                 <p
-                  className={`mt-2 truncate text-lg font-semibold tabular-nums sm:text-xl ${
+                  className={`mt-2 break-words text-base font-semibold tabular-nums sm:text-xl ${
                     card.valueClass ?? "text-slate-900"
                   }`}
                 >
