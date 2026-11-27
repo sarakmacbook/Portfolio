@@ -161,6 +161,17 @@ export function HistoryChart({ points }: { points: Point[] }) {
     );
   }
 
+  function scrubHistory(svg: SVGSVGElement, clientX: number) {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !xs.length) return;
+    const x = ((clientX - rect.left) / rect.width) * W;
+    let best = 0;
+    xs.forEach((v, i) => {
+      if (Math.abs(v - x) < Math.abs(xs[best] - x)) best = i;
+    });
+    setHover(best);
+  }
+
   const up = visiblePoints[visiblePoints.length - 1].value >= visiblePoints[0].value;
   const stroke = up ? "#4f46e5" : "#e11d48";
   const h = hover !== null ? visiblePoints[hover] : visiblePoints[visiblePoints.length - 1];
@@ -201,7 +212,7 @@ export function HistoryChart({ points }: { points: Point[] }) {
       )}
       <div className="mb-2 flex flex-col gap-1 text-sm sm:flex-row sm:items-baseline sm:justify-between">
         <span className="text-slate-500">{fmtDate(h.date)}</span>
-        <span className="flex gap-4">
+        <span className="flex flex-wrap gap-x-4 gap-y-1">
           <span>
             <span className="text-slate-400">Value </span>
             <span className="font-semibold text-slate-900">{money(h.value)}</span>
@@ -214,18 +225,16 @@ export function HistoryChart({ points }: { points: Point[] }) {
       </div>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="h-[220px] w-full"
+        className="h-[220px] w-full touch-pan-y select-none"
         preserveAspectRatio="none"
+        role="img"
+        aria-label="Portfolio value history chart"
         onMouseLeave={() => setHover(null)}
-        onMouseMove={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
-          const x = ((e.clientX - rect.left) / rect.width) * W;
-          let best = 0;
-          xs.forEach((v, i) => {
-            if (Math.abs(v - x) < Math.abs(xs[best] - x)) best = i;
-          });
-          setHover(best);
-        }}
+        onMouseMove={(e) => scrubHistory(e.currentTarget, e.clientX)}
+        onTouchStart={(e) => { if (e.touches[0]) scrubHistory(e.currentTarget, e.touches[0].clientX); }}
+        onTouchMove={(e) => { if (e.touches[0]) scrubHistory(e.currentTarget, e.touches[0].clientX); }}
+        onTouchEnd={() => setHover(null)}
+        onTouchCancel={() => setHover(null)}
       >
         <defs>
           <linearGradient id={`hist-fill-${gradId}`} x1="0" x2="0" y1="0" y2="1">

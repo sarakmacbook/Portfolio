@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import BackgroundRefresh from "@/components/BackgroundRefresh";
 import Nav from "@/components/Nav";
+import MobileTabBar from "@/components/MobileTabBar";
 import { PrivacyGate, PrivacyProvider } from "@/components/PrivacyProvider";
 import ThemeToggle from "@/components/ThemeToggle";
 import { privacyBootScript } from "@/lib/privacy";
@@ -75,15 +76,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             </div>
           </header>
           {!privacy.locked && <BackgroundRefresh />}
-          <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
+          <main className="app-content mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8">
             <PrivacyGate>{privacy.locked ? null : children}</PrivacyGate>
           </main>
-          <footer className="mx-auto max-w-6xl px-4 pb-[calc(2.5rem+env(safe-area-inset-bottom))] text-center text-xs text-slate-400 sm:px-6">
+          <footer className="app-footer mx-auto max-w-6xl px-4 pb-[calc(2.5rem+env(safe-area-inset-bottom))] text-center text-xs text-slate-400 sm:px-6">
             Manual entry and read-only imports · Amounts in USD ·{" "}
             <Link href="/alerts" className="hover:text-slate-600 hover:underline">
               Price alerts
             </Link>
           </footer>
+          <MobileTabBar />
         </PrivacyProvider>
         {/* Cookieless page-view counts, used only on a Vercel deployment — the
             script no-ops everywhere else. No portfolio data is sent. */}
